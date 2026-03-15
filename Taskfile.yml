@@ -1,0 +1,155 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Run all checks (lint, format, test, supply chain)
+    cmds:
+      - task: check
+      - task: supply-chain
+
+  # ── Build & Test ──────────────────────────────────────────
+
+  build:
+    desc: Build the project
+    cmds:
+      - cargo build
+
+  build-release:
+    desc: Build in release mode (LTO, stripped)
+    cmds:
+      - cargo build --release
+
+  test:
+    desc: Run all tests (unit + integration)
+    cmds:
+      - cargo test
+      - task: test-integration
+
+  test-integration:
+    desc: Run integration tests against the live server
+    cmds:
+      - python test_simple.py
+
+  test-db-up:
+    desc: Start PostgreSQL and CockroachDB containers
+    cmds:
+      - docker compose up -d --wait
+
+  test-db-down:
+    desc: Stop database containers
+    cmds:
+      - docker compose down
+
+  run:
+    desc: Run the binary
+    cmds:
+      - cargo run
+
+  # ── Code Quality ──────────────────────────────────────────
+
+  check:
+    desc: Run all code quality checks
+    cmds:
+      - task: fmt-check
+      - task: clippy
+      - task: test
+
+  fmt:
+    desc: Format code
+    cmds:
+      - cargo fmt
+
+  fmt-check:
+    desc: Check formatting without modifying files
+    cmds:
+      - cargo fmt --check
+
+  clippy:
+    desc: Run clippy with strict lints
+    cmds:
+      - cargo clippy
+
+  clippy-fix:
+    desc: Auto-fix clippy warnings
+    cmds:
+      - cargo clippy --fix --allow-dirty
+
+  # ── Supply Chain Security ─────────────────────────────────
+
+  supply-chain:
+    desc: Run all supply chain security checks
+    cmds:
+      - task: audit
+      - task: deny
+      - task: vet
+
+  audit:
+    desc: Scan dependencies for known vulnerabilities (cargo-audit)
+    preconditions:
+      - sh: command -v cargo-audit
+        msg: "cargo-audit not installed. Run: cargo install cargo-audit"
+    cmds:
+      - cargo audit
+
+  deny:
+    desc: Check licenses, bans, advisories, and sources (cargo-deny)
+    preconditions:
+      - sh: command -v cargo-deny
+        msg: "cargo-deny not installed. Run: cargo install cargo-deny"
+    cmds:
+      - cargo deny check
+
+  deny-init:
+    desc: Generate a default deny.toml config
+    preconditions:
+      - sh: command -v cargo-deny
+        msg: "cargo-deny not installed. Run: cargo install cargo-deny"
+    cmds:
+      - cargo deny init
+
+  vet:
+    desc: Verify all third-party deps have been audited (cargo-vet)
+    preconditions:
+      - sh: command -v cargo-vet
+        msg: "cargo-vet not installed. Run: cargo install cargo-vet"
+    cmds:
+      - cargo vet
+
+  vet-init:
+    desc: Initialize cargo-vet for this project
+    preconditions:
+      - sh: command -v cargo-vet
+        msg: "cargo-vet not installed. Run: cargo install cargo-vet"
+    cmds:
+      - cargo vet init
+
+  # ── Setup ─────────────────────────────────────────────────
+
+  setup:
+    desc: Install all required cargo tools
+    cmds:
+      - cargo install cargo-audit cargo-deny cargo-vet
+
+  # ── Clean ─────────────────────────────────────────────────
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - cargo clean
+
+  # -- Docker -----------------------------------------------
+
+  docker-build:
+    desc: Build the Docker image
+    cmds:
+      - docker build -t jsbox .
+
+  docker-run:
+    desc: Run the Docker container on port 3000
+    cmds:
+      - docker run --rm -p 3000:3000 jsbox
+
+  docker-run-config:
+    desc: Run with a custom config.json mounted
+    cmds:
+      - docker run --rm -p 3000:3000 -v "$(pwd)/config.json:/app/config.json:ro" jsbox
