@@ -1,6 +1,6 @@
 [package]
 name = "jsbox"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.92"
 description = "A strict Rust JS execution service powered by QuickJS"
