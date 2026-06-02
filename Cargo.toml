@@ -37,6 +37,15 @@ reqwest = { version = "0.13", default-features = false, features = [
     "rustls",
 ] }
 rust_decimal = { version = "1", features = ["db-postgres"] }
+lettre = { version = "0.11", default-features = false, features = [
+    "smtp-transport",
+    "builder",
+    "hostname",
+    "pool",
+    "rustls-no-provider",
+    "aws-lc-rs",
+    "webpki-roots",
+] }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1" }
 serde_json = "1"
