@@ -22,6 +22,12 @@ rquickjs = { version = "0.11.0", features = [
 base64 = "0.22"
 bytes = "1"
 chrono = { version = "0.4", default-features = false }
+# S3 SigV4 presigning — pure crypto, no network. Reuses crates already in the
+# tree (sha2/hmac/percent-encoding pulled transitively); `hex` is a tiny addition.
+hex = "0.4"
+hmac = "0.12"
+sha2 = "0.10"
+percent-encoding = "2"
 postgres = { version = "0.19", features = [
     "with-serde_json-1",
     "with-chrono-0_4",
