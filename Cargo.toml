@@ -42,6 +42,12 @@ reqwest = { version = "0.13", default-features = false, features = [
     "blocking",
     "rustls",
 ] }
+# TLS (`amqps://`) reuses the existing `aws-lc-rs` rustls provider (tokio-rustls), not a
+# second crypto stack.
+amqprs = { version = "2", features = ["tls"] }
+# TLS (`rediss://`) via rustls + webpki bundled roots (managed services use public CAs).
+# `rustls` here defaults to `aws-lc-rs`, the same provider db/reqwest/lettre already use.
+redis = { version = "0.27", features = ["tls-rustls", "tls-rustls-webpki-roots"] }
 rust_decimal = { version = "1", features = ["db-postgres"] }
 lettre = { version = "0.11", default-features = false, features = [
     "smtp-transport",
