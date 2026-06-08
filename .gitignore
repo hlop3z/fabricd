@@ -1,2 +1,5 @@
 /target
 .claude/scheduled_tasks.lock
+
+# ZITADEL service-account PAT (auth integration tests)
+.zitadel/
