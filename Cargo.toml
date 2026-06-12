@@ -18,6 +18,7 @@ rquickjs = { version = "0.12", features = [
     "properties",
     "rust-alloc",
     "parallel",
+    "loader",
 ] }
 base64 = "0.22"
 bytes = "1"
