@@ -3,3 +3,6 @@
 
 # ZITADEL service-account PAT (auth integration tests)
 .zitadel/
+
+# Working dir the integration harness starts the server from (generated config.json)
+.test-run/
