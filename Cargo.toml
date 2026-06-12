@@ -13,7 +13,7 @@ categories = ["development-tools"]
 axum = { version = "0.8", features = ["json"] }
 crossbeam-queue = "0.3"
 mimalloc = { version = "0.1", default-features = false }
-rquickjs = { version = "0.11.0", features = [
+rquickjs = { version = "0.12", features = [
     "classes",
     "properties",
     "rust-alloc",
@@ -25,8 +25,8 @@ chrono = { version = "0.4", default-features = false }
 # S3 SigV4 presigning — pure crypto, no network. Reuses crates already in the
 # tree (sha2/hmac/percent-encoding pulled transitively); `hex` is a tiny addition.
 hex = "0.4"
-hmac = "0.12"
-sha2 = "0.10"
+hmac = "0.13"
+sha2 = "0.11"
 percent-encoding = "2"
 # Async Postgres driver (Tier 2 resilience: per-query deadline + active cancellation
 # via connection teardown — see docs/design/resilience.md). The sync `postgres` wrapper
@@ -36,6 +36,8 @@ tokio-postgres = { version = "0.7", features = [
     "with-chrono-0_4",
     "with-uuid-1",
 ] }
+# Pinned to 0.1.x: 0.1.5 bumps the MSRV to Rust 1.93.1 (we target 1.92). Revisit with a
+# toolchain bump.
 postgres_rustls = "0.1"
 rustls = "0.23"
 tokio-rustls = "0.26"
@@ -50,7 +52,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 amqprs = { version = "2", features = ["tls"] }
 # TLS (`rediss://`) via rustls + webpki bundled roots (managed services use public CAs).
 # `rustls` here defaults to `aws-lc-rs`, the same provider db/reqwest/lettre already use.
-redis = { version = "0.27", features = ["tls-rustls", "tls-rustls-webpki-roots"] }
+redis = { version = "1", features = ["tls-rustls", "tls-rustls-webpki-roots"] }
 rust_decimal = { version = "1", features = ["db-tokio-postgres"] }
 lettre = { version = "0.11", default-features = false, features = [
     "smtp-transport",
