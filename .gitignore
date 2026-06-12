@@ -6,3 +6,5 @@
 
 # Working dir the integration harness starts the server from (generated config.json)
 .test-run/
+# Working dir the A/B stress harness starts servers from
+.stress-run/
