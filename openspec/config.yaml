@@ -1,13 +1,23 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# Project context — shown to AI when creating artifacts.
+context: |
+  jsbox: a sandboxed JavaScript execution service in Rust. Clients POST /execute a JS
+  `handler(ctx)` function plus a JSON context; the server runs it in an isolated QuickJS
+  context (rquickjs) and returns {data, error, meta}. The single endpoint is the product.
+
+  Tech stack: Rust (axum, tokio, rquickjs/QuickJS, mimalloc), distroless/static image.
+  Strict lint gauntlet (Cargo.toml [lints]): forbids unsafe; denies clippy all/pedantic/
+  nursery/cargo + many restriction lints (no unwrap/expect/panic, no bare arithmetic, no
+  `as` casts). Build/test are Docker-only (aws-lc-sys needs a C toolchain).
+
+  Architecture: a JsPool of pre-warmed runtimes; a fresh Context per request; capabilities
+  (api/db/mail/s3/redis/amq/auth) are per-request opt-in via config and metered. `$`/Decimal
+  and `$sys.crypto`/`$sys.date` are always on. Two registries (scripts, modules) load once at
+  startup. Resilience is layered (tiers 0-5). Design rationale lives in docs/design/.
+
+  Spec conventions: specs/ holds the WHAT (testable behavioral requirements + scenarios).
+  The WHY (lessons, measured trade-offs, decision trail) stays in docs/design/, linked.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
@@ -16,5 +26,3 @@ schema: spec-driven
 #     proposal:
 #       - Keep proposals under 500 words
 #       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
