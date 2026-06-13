@@ -1,4 +1,6 @@
 /target
+# CARGO_HOME used by the Docker verification build (musl/aws-lc-sys can't build on Windows)
+/.cargo-docker
 .claude/scheduled_tasks.lock
 
 # ZITADEL service-account PAT (auth integration tests)
