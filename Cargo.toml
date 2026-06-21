@@ -41,13 +41,13 @@ tokio-postgres = { version = "0.7", features = [
 # toolchain bump.
 postgres_rustls = "0.1"
 # Document database (Tier 2 resilience: per-op client-side deadline like db). Async driver;
-# `default-features = false` drops the `dns-resolver` (mongodb+srv) feature we don't use and
-# keeps `rustls-tls`, which reuses the process-wide `aws-lc-rs` rustls provider (installed in
-# main.rs) rather than linking a second crypto stack. `compat-3-0-0` is mongodb's required
-# major-version acknowledgement feature.
+# `default-features = false` drops the `dns-resolver` (mongodb+srv) feature we don't use.
+# `rustls-tls-aws-lc` (NOT the default `rustls-tls`, which pulls `ring`) routes mongodb's
+# rustls onto the process-wide `aws-lc-rs` provider — one crypto stack, no second one.
+# `compat-3-0-0` is mongodb's required major-version acknowledgement feature.
 mongodb = { version = "3", default-features = false, features = [
     "compat-3-0-0",
-    "rustls-tls",
+    "rustls-tls-aws-lc",
 ] }
 rustls = "0.23"
 tokio-rustls = "0.26"
@@ -61,10 +61,17 @@ reqwest = { version = "0.13", default-features = false, features = [
 # second crypto stack.
 amqprs = { version = "2", features = ["tls"] }
 # Subject-based messaging backend for the `amq` capability (publish + request-reply). See
-# `docs-sys/rfc.md` §3.5 (admitted as a backend of the messaging capability, not a new
-# top-level capability). NOTE (supply-chain): verify its TLS provider reuses `aws-lc-rs`
-# rather than pulling `ring` when re-running `task supply-chain`.
-async-nats = "0.49"
+# `docs-sys/rfc.md` §3.5. `default-features = false` drops `ring` (the default crypto
+# provider) for `aws-lc-rs` — reusing the one process-wide provider, no second crypto stack —
+# and sheds the unused jetstream/kv/object-store/service/websockets subsystems. We use only
+# core connect + publish + request-reply (+ optional TLS), so `crypto`/`nuid`/`server_2_10`
+# are the needed defaults.
+async-nats = { version = "0.49", default-features = false, features = [
+    "aws-lc-rs",
+    "crypto",
+    "nuid",
+    "server_2_10",
+] }
 # TLS (`rediss://`) via rustls + webpki bundled roots (managed services use public CAs).
 # `rustls` here defaults to `aws-lc-rs`, the same provider db/reqwest/lettre already use.
 redis = { version = "1", features = ["tls-rustls", "tls-rustls-webpki-roots"] }

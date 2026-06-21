@@ -12,7 +12,10 @@ context: |
   `as` casts). Build/test are Docker-only (aws-lc-sys needs a C toolchain).
 
   Architecture: a JsPool of pre-warmed runtimes; a fresh Context per request; capabilities
-  (api/db/mail/s3/redis/amq/auth) are per-request opt-in via config and metered. `$`/Decimal
+  (api/db/mongo/mail/s3/redis/amq/auth) are per-request opt-in via config and metered. The
+  `amq` messaging capability has two backends (RabbitMQ default, NATS); `mongo` is a document
+  store following the async db template. New capabilities are gated by docs-sys/rfc.md §3.5.
+  `$`/Decimal
   and `$sys.crypto`/`$sys.date` are always on. Two registries (scripts, modules) load once at
   startup. Resilience is layered (tiers 0-5). Design rationale lives in docs/design/.
 
