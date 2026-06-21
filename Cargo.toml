@@ -40,6 +40,15 @@ tokio-postgres = { version = "0.7", features = [
 # Pinned to 0.1.x: 0.1.5 bumps the MSRV to Rust 1.93.1 (we target 1.92). Revisit with a
 # toolchain bump.
 postgres_rustls = "0.1"
+# Document database (Tier 2 resilience: per-op client-side deadline like db). Async driver;
+# `default-features = false` drops the `dns-resolver` (mongodb+srv) feature we don't use and
+# keeps `rustls-tls`, which reuses the process-wide `aws-lc-rs` rustls provider (installed in
+# main.rs) rather than linking a second crypto stack. `compat-3-0-0` is mongodb's required
+# major-version acknowledgement feature.
+mongodb = { version = "3", default-features = false, features = [
+    "compat-3-0-0",
+    "rustls-tls",
+] }
 rustls = "0.23"
 tokio-rustls = "0.26"
 webpki-roots = "1"
@@ -51,6 +60,11 @@ reqwest = { version = "0.13", default-features = false, features = [
 # TLS (`amqps://`) reuses the existing `aws-lc-rs` rustls provider (tokio-rustls), not a
 # second crypto stack.
 amqprs = { version = "2", features = ["tls"] }
+# Subject-based messaging backend for the `amq` capability (publish + request-reply). See
+# `docs-sys/rfc.md` §3.5 (admitted as a backend of the messaging capability, not a new
+# top-level capability). NOTE (supply-chain): verify its TLS provider reuses `aws-lc-rs`
+# rather than pulling `ring` when re-running `task supply-chain`.
+async-nats = "0.49"
 # TLS (`rediss://`) via rustls + webpki bundled roots (managed services use public CAs).
 # `rustls` here defaults to `aws-lc-rs`, the same provider db/reqwest/lettre already use.
 redis = { version = "1", features = ["tls-rustls", "tls-rustls-webpki-roots"] }
