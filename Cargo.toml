@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/runlet-core", "crates/runlet"]
+members = ["crates/runlet-core", "crates/runlet", "crates/runlet-bench"]
 
 # ──────────────────────────────────────────────────────────────
 # Shared package metadata (inherited via `*.workspace = true`)
@@ -41,6 +41,10 @@ tracing = "0.1"
 
 # -- core (engine) --
 crossbeam-queue = "0.3"
+# Bounded, concurrent, TinyLFU-evicting cache backing the always-on compiled-QuickJS-bytecode
+# cache — keeps the bytecode set memory-bounded across an effectively unbounded tenant/script
+# space. `sync` only (the engine runs on a blocking thread; no async cache needed).
+moka = { version = "0.12", default-features = false, features = ["sync"] }
 rquickjs = { version = "0.12", features = [
     "classes",
     "properties",
@@ -121,7 +125,12 @@ lettre = { version = "0.11", default-features = false, features = [
 # Rustc lints — deny everything allowed-by-default that matters
 # ──────────────────────────────────────────────────────────────
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# `deny` (not `forbid`) so the single audited `Module::load` bytecode-deserialization backing the
+# always-on bytecode cache can carry an `#[expect(unsafe_code, reason = …)]` (the lone unsafe in
+# the workspace; see runlet-core `engine.rs::load_bytecode`). Every other unsafe still
+# hard-errors. To restore `forbid` everywhere else, move that one call into a dedicated
+# non-inheriting crate (as `runlet-bench` already opts out of these lints).
+unsafe_code = "deny"
 missing_docs = "deny"
 unused = { level = "deny", priority = -1 }
 nonstandard_style = { level = "deny", priority = -1 }
