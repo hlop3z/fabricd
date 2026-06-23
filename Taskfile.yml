@@ -43,7 +43,7 @@ tasks:
   run:
     desc: Run the binary
     cmds:
-      - cargo run
+      - cargo run -p runlet
 
   # ── Code Quality ──────────────────────────────────────────
 
@@ -142,14 +142,14 @@ tasks:
   docker-build:
     desc: Build the Docker image
     cmds:
-      - docker build -t jsbox .
+      - docker build -t runlet .
 
   docker-run:
     desc: Run the Docker container on port 3000
     cmds:
-      - docker run --rm -p 3000:3000 jsbox
+      - docker run --rm -p 3000:3000 runlet
 
   docker-run-config:
     desc: Run with a custom config.json mounted
     cmds:
-      - docker run --rm -p 3000:3000 -v "$(pwd)/config.json:/app/config.json:ro" jsbox
+      - docker run --rm -p 3000:3000 -v "$(pwd)/config.json:/app/config.json:ro" runlet

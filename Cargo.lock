@@ -1284,41 +1284,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jsbox"
-version = "0.1.1"
-dependencies = [
- "amqprs",
- "async-nats",
- "axum",
- "base64",
- "bytes",
- "chrono",
- "crossbeam-queue",
- "hex",
- "hmac 0.13.0",
- "lettre",
- "mimalloc",
- "mongodb",
- "percent-encoding",
- "postgres_rustls",
- "redis",
- "reqwest",
- "rquickjs",
- "rust_decimal",
- "rustls",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "tokio",
- "tokio-postgres",
- "tokio-rustls",
- "tracing",
- "tracing-subscriber",
- "uuid",
- "webpki-roots 1.0.7",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2233,6 +2198,54 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "698077537c286a169de8693b216672bcef148bf2e2e112ebf50758c68e9afa09"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "runlet"
+version = "0.1.1"
+dependencies = [
+ "axum",
+ "mimalloc",
+ "runlet-core",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "runlet-core"
+version = "0.1.1"
+dependencies = [
+ "amqprs",
+ "async-nats",
+ "base64",
+ "bytes",
+ "chrono",
+ "crossbeam-queue",
+ "hex",
+ "hmac 0.13.0",
+ "lettre",
+ "mongodb",
+ "percent-encoding",
+ "postgres_rustls",
+ "redis",
+ "reqwest",
+ "rquickjs",
+ "rust_decimal",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tokio",
+ "tokio-postgres",
+ "tokio-rustls",
+ "tracing",
+ "uuid",
+ "webpki-roots 1.0.7",
 ]
 
 [[package]]

@@ -1,18 +1,46 @@
-[package]
-name = "jsbox"
+[workspace]
+resolver = "3"
+members = ["crates/runlet-core", "crates/runlet"]
+
+# ──────────────────────────────────────────────────────────────
+# Shared package metadata (inherited via `*.workspace = true`)
+# ──────────────────────────────────────────────────────────────
+[workspace.package]
 version = "0.1.1"
 edition = "2024"
 rust-version = "1.92"
-description = "A strict Rust JS execution service powered by QuickJS"
 license = "MIT"
-repository = "https://github.com/user/jsbox"
+repository = "https://github.com/user/runlet"
 keywords = ["quickjs", "javascript", "scripting", "rust"]
 categories = ["development-tools"]
 
-[dependencies]
+# ──────────────────────────────────────────────────────────────
+# Shared dependencies — each crate opts in with `dep.workspace = true`
+# ──────────────────────────────────────────────────────────────
+[workspace.dependencies]
+# -- bin (HTTP front) --
 axum = { version = "0.8", features = ["json"] }
-crossbeam-queue = "0.3"
 mimalloc = { version = "0.1", default-features = false }
+tracing-subscriber = "0.3"
+
+# -- shared --
+serde = { version = "1", features = ["derive"] }
+# `raw_value` — the engine's `emit` effects + the `{data,error}` envelope use `RawValue`.
+# Declared directly so a `--no-default-features` core build (no drivers to pull it in) has it.
+serde_json = { version = "1", features = ["raw_value"] }
+uuid = { version = "1", features = ["v4"] }
+tokio = { version = "1", features = [
+    "macros",
+    "rt-multi-thread",
+    "net",
+    "signal",
+    "sync",
+    "time",
+] }
+tracing = "0.1"
+
+# -- core (engine) --
+crossbeam-queue = "0.3"
 rquickjs = { version = "0.12", features = [
     "classes",
     "properties",
@@ -22,7 +50,10 @@ rquickjs = { version = "0.12", features = [
 ] }
 base64 = "0.22"
 bytes = "1"
-chrono = { version = "0.4", default-features = false }
+# `clock` (⊇ `std` ⊇ `alloc`) — `$sys`/`s3` need RFC-3339 formatting + `Utc::now`. Declared
+# directly so a `--no-default-features` core build (no driver crates) still has them, rather
+# than relying on a driver to enable them transitively.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # S3 SigV4 presigning — pure crypto, no network. Reuses crates already in the
 # tree (sha2/hmac/percent-encoding pulled transitively); `hex` is a tiny addition.
 hex = "0.4"
@@ -85,24 +116,11 @@ lettre = { version = "0.11", default-features = false, features = [
     "aws-lc-rs",
     "webpki-roots",
 ] }
-serde = { version = "1", features = ["derive"] }
-uuid = { version = "1", features = ["v4"] }
-serde_json = "1"
-tokio = { version = "1", features = [
-    "macros",
-    "rt-multi-thread",
-    "net",
-    "signal",
-    "sync",
-    "time",
-] }
-tracing = "0.1"
-tracing-subscriber = "0.3"
 
 # ──────────────────────────────────────────────────────────────
 # Rustc lints — deny everything allowed-by-default that matters
 # ──────────────────────────────────────────────────────────────
-[lints.rust]
+[workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "deny"
 unused = { level = "deny", priority = -1 }
@@ -132,7 +150,7 @@ variant_size_differences = "warn"
 # ──────────────────────────────────────────────────────────────
 # Clippy lint groups
 # ──────────────────────────────────────────────────────────────
-[lints.clippy]
+[workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
@@ -231,7 +249,7 @@ ref_patterns = "deny"
 renamed_function_params = "deny"
 
 # ──────────────────────────────────────────────────────────────
-# Profiles
+# Profiles (apply at the workspace root only)
 # ──────────────────────────────────────────────────────────────
 [profile.dev]
 debug = true
