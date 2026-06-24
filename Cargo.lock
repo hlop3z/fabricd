@@ -866,6 +866,7 @@ version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -875,6 +876,8 @@ dependencies = [
  "fabric-backends",
  "fabric-wire",
  "rustls",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2441,7 +2444,6 @@ name = "runlet"
 version = "0.1.1"
 dependencies = [
  "axum",
- "fabric-backends",
  "fabric-wire",
  "mimalloc",
  "runlet-core",

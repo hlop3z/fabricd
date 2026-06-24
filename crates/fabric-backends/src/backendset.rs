@@ -22,14 +22,18 @@ use tokio::runtime::Handle;
 
 use fabric_wire::{CircuitBreaker, Egress, EgressError, ErrorOwner};
 
-use crate::wire::{BackendMetrics, WireInit};
+use fabric_wire::{
+    AmqMetric, AuthMetric, BackendMetrics, DbMetric, MailMetric, MeteredEgress, MongoMetric,
+    RedisMetric,
+};
 
-use crate::amq::{AmqConfig, AmqError, AmqMetric, AmqProducer};
-use crate::auth::{AuthBackend, AuthConfig, AuthMetric};
-use crate::db::{DbBackend, DbConfig, DbDeps, DbError, DbMetric};
-use crate::kv::{RedisBackend, RedisConfig, RedisError, RedisMetric};
-use crate::mail::{MailBackend, MailConfig, MailError, MailMetric};
-use crate::mongo::{MongoBackend, MongoConfig, MongoDeps, MongoError, MongoMetric};
+use crate::amq::{AmqConfig, AmqError, AmqProducer};
+use crate::auth::{AuthBackend, AuthConfig};
+use crate::db::{DbBackend, DbConfig, DbDeps, DbError};
+use crate::kv::{RedisBackend, RedisConfig, RedisError};
+use crate::mail::{MailBackend, MailConfig, MailError};
+use crate::mongo::{MongoBackend, MongoConfig, MongoDeps, MongoError};
+use crate::resources::ResolvedConfigs;
 
 /// Shared runtime/resilience deps for the async backends (`db`, `mongo`). Cloned per backend.
 #[derive(Debug, Clone)]
@@ -69,28 +73,28 @@ impl BackendSet {
         Self::default()
     }
 
-    /// Builds a set from a [`WireInit`] (the sidecar session-open message): each `Some` config
-    /// becomes a lazily-connected backend. `deps` carries the runtime handle, the optional
-    /// breaker, and the per-execution deadline (`init.timeout_ms`).
+    /// Builds a set from resolved operator configs (each `Some` becomes a lazily-connected
+    /// backend). `deps` carries the runtime handle, the optional breaker, and the deadline. This is
+    /// the daemon-side constructor: `fabricd` resolves the session's logical names to these configs.
     #[must_use]
-    pub fn from_init(init: &WireInit, deps: &AsyncDeps) -> Self {
+    pub fn from_configs(configs: &ResolvedConfigs, deps: &AsyncDeps) -> Self {
         let mut set = Self::new();
-        if let Some(cfg) = init.db.clone() {
+        if let Some(cfg) = configs.db.clone() {
             set = set.with_db(cfg, deps);
         }
-        if let Some(cfg) = init.mongo.clone() {
+        if let Some(cfg) = configs.mongo.clone() {
             set = set.with_mongo(cfg, deps);
         }
-        if let Some(cfg) = init.mail.clone() {
+        if let Some(cfg) = configs.mail.clone() {
             set = set.with_mail(cfg);
         }
-        if let Some(cfg) = init.redis.clone() {
+        if let Some(cfg) = configs.redis.clone() {
             set = set.with_redis(cfg);
         }
-        if let Some(cfg) = init.amq.clone() {
+        if let Some(cfg) = configs.amq.clone() {
             set = set.with_amq(cfg);
         }
-        if let Some(cfg) = init.auth.clone() {
+        if let Some(cfg) = configs.auth.clone() {
             set = set.with_auth(cfg);
         }
         set
@@ -309,15 +313,6 @@ impl Egress for BackendSet {
             }
         }
     }
-}
-
-/// An [`Egress`] that also exposes its drained per-capability metrics.
-///
-/// Lets the consumer treat the in-process [`BackendSet`] and a future sidecar-client egress
-/// uniformly: pass either as `dyn Egress` to an invocation, then `drain_metrics()` after the run.
-pub trait MeteredEgress: Egress {
-    /// The per-capability metrics recorded this session.
-    fn drain_metrics(&self) -> BackendMetrics;
 }
 
 impl MeteredEgress for BackendSet {

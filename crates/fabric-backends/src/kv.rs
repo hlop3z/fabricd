@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{EgressError, ErrorOwner, Fault};
+use fabric_wire::{RedisMetric, EgressError, ErrorOwner, Fault};
 
 /// Fallback fault for a Redis error with no specific predicate.
 const REDIS_FALLBACK: Fault = Fault::new("REDIS_ERROR", true, ErrorOwner::Operator);
@@ -41,27 +41,6 @@ pub struct RedisConfig {
 /// Default command timeout in milliseconds.
 const fn default_timeout() -> u64 {
     5000
-}
-
-/// Metric recorded for each Redis operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RedisMetric {
-    /// Operation type.
-    action: String,
-    /// Duration in microseconds.
-    duration_us: u128,
-    /// Value size in bytes (get/set; 0 otherwise).
-    bytes: usize,
-    /// Whether a `get` found the key (false otherwise).
-    hit: bool,
-}
-
-impl RedisMetric {
-    /// Operation duration in microseconds (for the per-capability latency histogram).
-    #[must_use]
-    pub const fn duration_us(&self) -> u128 {
-        self.duration_us
-    }
 }
 
 /// A Redis error carrying its classified [`Fault`] plus the raw message.

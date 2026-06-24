@@ -21,7 +21,7 @@ use serde_json::value::RawValue;
 use tokio::runtime::{Builder, Runtime};
 
 use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{EgressError, ErrorOwner, Fault};
+use fabric_wire::{AmqMetric, EgressError, ErrorOwner, Fault};
 
 /// Fallback fault for a publish/protocol error.
 const AMQ_FALLBACK: Fault = Fault::new("AMQ_ERROR", true, ErrorOwner::Operator);
@@ -107,29 +107,6 @@ const fn default_max_batch() -> usize {
 /// Default request-reply timeout (milliseconds).
 const fn default_request_timeout() -> u64 {
     5000
-}
-
-/// Metric recorded for each `amq.send` op.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AmqMetric {
-    /// Operation type.
-    action: String,
-    /// Duration in microseconds.
-    duration_us: u128,
-    /// Number of messages in the batch.
-    messages: usize,
-    /// Total payload bytes published.
-    bytes: usize,
-    /// Whether the batch was accepted by the broker.
-    published: bool,
-}
-
-impl AmqMetric {
-    /// Operation duration in microseconds (for the per-capability latency histogram).
-    #[must_use]
-    pub const fn duration_us(&self) -> u128 {
-        self.duration_us
-    }
 }
 
 /// An amq error carrying its classified [`Fault`] plus the raw message.

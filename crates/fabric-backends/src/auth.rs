@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{EgressError, ErrorOwner, Fault};
+use fabric_wire::{AuthMetric, EgressError, ErrorOwner, Fault};
 
 /// Issuer unreachable / 5xx / timeout — transient, page ops.
 const AUTH_UNAVAILABLE: Fault = Fault::new("AUTH_UNAVAILABLE", true, ErrorOwner::Operator);
@@ -56,27 +56,6 @@ pub struct AuthConfig {
     /// Connect + read timeout in milliseconds (default 10000).
     #[serde(default = "default_timeout")]
     pub timeout_ms: u64,
-}
-
-/// Metric recorded for each auth operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthMetric {
-    /// Operation type (`user_info` / `introspect`).
-    action: String,
-    /// Issuer host only (no path/query — privacy).
-    host: String,
-    /// IAM HTTP status (0 if the call failed before a response).
-    status: u16,
-    /// Duration in microseconds.
-    duration_us: u128,
-}
-
-impl AuthMetric {
-    /// Operation duration in microseconds (for the per-capability latency histogram).
-    #[must_use]
-    pub const fn duration_us(&self) -> u128 {
-        self.duration_us
-    }
 }
 
 /// Endpoints resolved from OIDC discovery (each absent if the issuer omits it).

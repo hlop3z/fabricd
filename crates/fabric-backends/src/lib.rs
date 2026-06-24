@@ -17,7 +17,7 @@ pub mod db;
 pub mod kv;
 pub mod mail;
 pub mod mongo;
-pub mod wire;
+pub mod resources;
 
-pub use crate::backendset::{AsyncDeps, BackendSet, MeteredEgress};
-pub use crate::wire::{BackendMetrics, WireCall, WireInit, WireRequest, WireResponse};
+pub use crate::backendset::{AsyncDeps, BackendSet};
+pub use crate::resources::{ResolveError, ResolvedConfigs, ResourceBinding, resolve};

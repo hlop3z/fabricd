@@ -17,7 +17,7 @@ use lettre::{SmtpTransport, Transport};
 use serde::{Deserialize, Serialize};
 
 use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{EgressError, ErrorOwner, Fault};
+use fabric_wire::{MailMetric, EgressError, ErrorOwner, Fault};
 
 /// Fallback fault for any mail error that isn't a classified SMTP reply.
 const MAIL_FALLBACK: Fault = Fault::new("MAIL_ERROR", true, ErrorOwner::Operator);
@@ -139,29 +139,6 @@ const fn default_max_recipients() -> usize {
 /// Default timeout in milliseconds.
 const fn default_timeout() -> u64 {
     10_000
-}
-
-/// Metric recorded for each mail operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MailMetric {
-    /// Operation type.
-    action: String,
-    /// Duration in microseconds.
-    duration_us: u128,
-    /// Number of recipients (to + cc + bcc).
-    recipients: usize,
-    /// Serialized message size in bytes.
-    bytes: usize,
-    /// Whether the send was accepted by the server.
-    accepted: bool,
-}
-
-impl MailMetric {
-    /// Operation duration in microseconds (for the per-capability latency histogram).
-    #[must_use]
-    pub const fn duration_us(&self) -> u128 {
-        self.duration_us
-    }
 }
 
 /// Parsed payload for a `send` operation.

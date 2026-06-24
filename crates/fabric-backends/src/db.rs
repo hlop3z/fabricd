@@ -22,7 +22,7 @@ use tokio_postgres::types::{FromSql, IsNull, ToSql, Type};
 use tokio_postgres::{Client, Connection, NoTls};
 
 use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{CircuitBreaker, EgressError, ErrorOwner, Fault};
+use fabric_wire::{CircuitBreaker, DbMetric, EgressError, ErrorOwner, Fault};
 
 /// Fallback fault for any db error without a recognized driver `SqlState`.
 const DB_FALLBACK: Fault = Fault::new("DB_ERROR", true, ErrorOwner::Operator);
@@ -184,29 +184,6 @@ const fn default_statement_timeout() -> u64 {
 /// Default max rows.
 const fn default_max_rows() -> usize {
     1000
-}
-
-/// Metric recorded for each DB operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DbMetric {
-    /// Operation type.
-    action: String,
-    /// Duration in microseconds.
-    duration_us: u128,
-    /// Rows returned (query only).
-    rows_returned: usize,
-    /// Rows affected (execute only).
-    rows_affected: u64,
-    /// Whether result was truncated.
-    truncated: bool,
-}
-
-impl DbMetric {
-    /// Operation duration in microseconds (for the per-capability latency histogram).
-    #[must_use]
-    pub const fn duration_us(&self) -> u128 {
-        self.duration_us
-    }
 }
 
 // -- Public API -------------------------------------------------------------

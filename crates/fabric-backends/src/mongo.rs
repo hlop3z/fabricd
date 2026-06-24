@@ -30,7 +30,7 @@ use tokio::runtime::Handle;
 use tokio::time::timeout;
 
 use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{EgressError, ErrorOwner, Fault};
+use fabric_wire::{MongoMetric, EgressError, ErrorOwner, Fault};
 
 /// Fallback fault for any mongo error without a more specific classification.
 const MONGO_FALLBACK: Fault = Fault::new("MONGO_ERROR", true, ErrorOwner::Operator);
@@ -91,29 +91,6 @@ pub struct MongoConfig {
     /// Max documents returned by a read (default 1000).
     #[serde(default = "default_max_docs")]
     max_docs: usize,
-}
-
-/// Metric recorded for each mongo operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MongoMetric {
-    /// Operation type.
-    action: String,
-    /// Duration in microseconds.
-    duration_us: u128,
-    /// Documents returned (reads).
-    docs_returned: usize,
-    /// Documents inserted / matched-modified / deleted (writes).
-    docs_affected: u64,
-    /// Whether a read result was truncated at `max_docs`.
-    truncated: bool,
-}
-
-impl MongoMetric {
-    /// Operation duration in microseconds (for the per-capability latency histogram).
-    #[must_use]
-    pub const fn duration_us(&self) -> u128 {
-        self.duration_us
-    }
 }
 
 /// A mongo error carrying its classified [`Fault`], the raw message, and structured details.
