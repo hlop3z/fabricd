@@ -1,0 +1,46 @@
+[package]
+name = "fabric-backends"
+description = "Driver-backed egress backends for runlet (db/mongo/mail/redis/amq/auth) plus the in-process BackendSet that wires them behind the fabric-wire Egress port — the code a sidecar (fabricd) hosts once drivers leave the sandbox"
+readme = "../../README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# Depends only on the shared wire contract (fabric-wire) + the driver crates — never on
+# runlet-core (no QuickJS here). This is the half of the old runlet-core capability modules
+# that holds the drivers; the JS wrappers (`inject_wrapper` + `js/*.js`) stay in runlet-core.
+#
+# Deliberately *featureless*: this crate is the driver bag, so it always carries every backend.
+# The capability cfg matrix that matters lives in `runlet-core` (which links no drivers and is
+# swept with `--no-default-features`); a deterministic-core build never depends on this crate.
+# See docs/design/resource-egress.md.
+[dependencies]
+fabric-wire = { path = "../fabric-wire" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-postgres.workspace = true
+postgres_rustls.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+webpki-roots.workspace = true
+mongodb.workspace = true
+reqwest.workspace = true
+amqprs.workspace = true
+async-nats.workspace = true
+redis.workspace = true
+lettre.workspace = true
+bytes.workspace = true
+tracing.workspace = true
+rust_decimal.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+base64.workspace = true
+percent-encoding.workspace = true
+
+[lints]
+workspace = true

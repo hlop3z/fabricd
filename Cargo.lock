@@ -833,6 +833,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "fabric-backends"
+version = "0.1.1"
+dependencies = [
+ "amqprs",
+ "async-nats",
+ "base64",
+ "bytes",
+ "chrono",
+ "fabric-wire",
+ "lettre",
+ "mongodb",
+ "percent-encoding",
+ "postgres_rustls",
+ "redis",
+ "reqwest",
+ "rust_decimal",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-postgres",
+ "tokio-rustls",
+ "tracing",
+ "uuid",
+ "webpki-roots 1.0.7",
+]
+
+[[package]]
+name = "fabric-wire"
+version = "0.1.1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fallible-iterator"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2393,6 +2429,7 @@ name = "runlet"
 version = "0.1.1"
 dependencies = [
  "axum",
+ "fabric-backends",
  "mimalloc",
  "runlet-core",
  "rustls",
@@ -2416,33 +2453,22 @@ dependencies = [
 name = "runlet-core"
 version = "0.1.1"
 dependencies = [
- "amqprs",
- "async-nats",
  "base64",
- "bytes",
  "chrono",
  "crossbeam-queue",
+ "fabric-wire",
  "hex",
  "hmac 0.13.0",
- "lettre",
  "moka",
- "mongodb",
  "percent-encoding",
- "postgres_rustls",
- "redis",
  "reqwest",
  "rquickjs",
  "rust_decimal",
- "rustls",
  "serde",
  "serde_json",
  "sha2 0.11.0",
  "tokio",
- "tokio-postgres",
- "tokio-rustls",
- "tracing",
  "uuid",
- "webpki-roots 1.0.7",
 ]
 
 [[package]]

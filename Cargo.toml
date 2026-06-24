@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/runlet-core", "crates/runlet", "crates/runlet-bench"]
+members = [
+    "crates/fabric-wire",
+    "crates/fabric-backends",
+    "crates/runlet-core",
+    "crates/runlet",
+    "crates/runlet-bench",
+]
 
 # ──────────────────────────────────────────────────────────────
 # Shared package metadata (inherited via `*.workspace = true`)
