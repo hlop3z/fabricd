@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/fabric-wire",
     "crates/fabric-backends",
+    "crates/fabricd",
     "crates/runlet-core",
     "crates/runlet",
     "crates/runlet-bench",

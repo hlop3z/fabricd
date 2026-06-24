@@ -869,6 +869,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fabricd"
+version = "0.1.1"
+dependencies = [
+ "fabric-backends",
+ "fabric-wire",
+ "rustls",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "fallible-iterator"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2430,6 +2442,7 @@ version = "0.1.1"
 dependencies = [
  "axum",
  "fabric-backends",
+ "fabric-wire",
  "mimalloc",
  "runlet-core",
  "rustls",

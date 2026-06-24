@@ -29,7 +29,7 @@ pub const REDIS_CONNECTION_FAULT: Fault =
     Fault::new("REDIS_CONNECTION", true, ErrorOwner::Operator);
 
 /// Per-request Redis configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RedisConfig {
     /// Connection URL, e.g. `redis://user:pass@host:6379/0`.
     pub url: String,
@@ -44,7 +44,7 @@ const fn default_timeout() -> u64 {
 }
 
 /// Metric recorded for each Redis operation.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedisMetric {
     /// Operation type.
     action: String,

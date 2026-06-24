@@ -35,7 +35,7 @@ const AMQ_TIMEOUT: Fault = Fault::new("AMQ_TIMEOUT", true, ErrorOwner::Operator)
 const AMQ_UNSUPPORTED: Fault = Fault::new("AMQ_UNSUPPORTED", false, ErrorOwner::Developer);
 
 /// Messaging backend selected by `config.amq.backend`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AmqBackend {
     /// `RabbitMQ` (default) — AMQP producer.
@@ -46,7 +46,7 @@ pub enum AmqBackend {
 }
 
 /// Per-request messaging configuration (`RabbitMQ` or `NATS`, by `backend`).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AmqConfig {
     /// Messaging backend (default `rabbitmq`).
     #[serde(default)]
@@ -110,7 +110,7 @@ const fn default_request_timeout() -> u64 {
 }
 
 /// Metric recorded for each `amq.send` op.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AmqMetric {
     /// Operation type.
     action: String,

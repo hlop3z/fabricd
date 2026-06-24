@@ -149,7 +149,7 @@ fn classify_by_class(code: &str) -> Fault {
 }
 
 /// Per-request database configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DbConfig {
     /// Database host.
     pub host: String,
@@ -187,7 +187,7 @@ const fn default_max_rows() -> usize {
 }
 
 /// Metric recorded for each DB operation.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DbMetric {
     /// Operation type.
     action: String,

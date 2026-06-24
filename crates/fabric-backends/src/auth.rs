@@ -37,7 +37,7 @@ const fn default_timeout() -> u64 {
 }
 
 /// Per-request auth configuration (operator-supplied, trusted).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AuthConfig {
     /// OIDC issuer base URL (used for discovery + the metric host).
     pub issuer: String,
@@ -59,7 +59,7 @@ pub struct AuthConfig {
 }
 
 /// Metric recorded for each auth operation.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthMetric {
     /// Operation type (`user_info` / `introspect`).
     action: String,

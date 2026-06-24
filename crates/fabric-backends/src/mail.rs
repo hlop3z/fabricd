@@ -80,7 +80,7 @@ fn classify(err: &SmtpError) -> Fault {
 }
 
 /// Transport security mode for the SMTP connection.
-#[derive(Debug, Clone, Copy, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TlsMode {
     /// Upgrade a plaintext connection with STARTTLS (default; usually port 587).
@@ -93,7 +93,7 @@ pub enum TlsMode {
 }
 
 /// Per-request mail configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MailConfig {
     /// SMTP relay host.
     pub host: String,
@@ -142,7 +142,7 @@ const fn default_timeout() -> u64 {
 }
 
 /// Metric recorded for each mail operation.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MailMetric {
     /// Operation type.
     action: String,

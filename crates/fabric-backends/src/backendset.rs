@@ -22,6 +22,8 @@ use tokio::runtime::Handle;
 
 use fabric_wire::{CircuitBreaker, Egress, EgressError, ErrorOwner};
 
+use crate::wire::{BackendMetrics, WireInit};
+
 use crate::amq::{AmqConfig, AmqError, AmqMetric, AmqProducer};
 use crate::auth::{AuthBackend, AuthConfig, AuthMetric};
 use crate::db::{DbBackend, DbConfig, DbDeps, DbError, DbMetric};
@@ -65,6 +67,47 @@ impl BackendSet {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Builds a set from a [`WireInit`] (the sidecar session-open message): each `Some` config
+    /// becomes a lazily-connected backend. `deps` carries the runtime handle, the optional
+    /// breaker, and the per-execution deadline (`init.timeout_ms`).
+    #[must_use]
+    pub fn from_init(init: &WireInit, deps: &AsyncDeps) -> Self {
+        let mut set = Self::new();
+        if let Some(cfg) = init.db.clone() {
+            set = set.with_db(cfg, deps);
+        }
+        if let Some(cfg) = init.mongo.clone() {
+            set = set.with_mongo(cfg, deps);
+        }
+        if let Some(cfg) = init.mail.clone() {
+            set = set.with_mail(cfg);
+        }
+        if let Some(cfg) = init.redis.clone() {
+            set = set.with_redis(cfg);
+        }
+        if let Some(cfg) = init.amq.clone() {
+            set = set.with_amq(cfg);
+        }
+        if let Some(cfg) = init.auth.clone() {
+            set = set.with_auth(cfg);
+        }
+        set
+    }
+
+    /// Drains every capability's metrics into one [`BackendMetrics`] (the consumer merges it into
+    /// the response `meta.<cap>_requests`; empty for any capability the run never touched).
+    #[must_use]
+    pub fn metrics(&self) -> BackendMetrics {
+        BackendMetrics {
+            db: self.db_metrics(),
+            mongo: self.mongo_metrics(),
+            mail: self.mail_metrics(),
+            redis: self.redis_metrics(),
+            amq: self.amq_metrics(),
+            auth: self.auth_metrics(),
+        }
     }
 
     /// Wires the `db` capability (connects lazily on first use).
@@ -265,6 +308,21 @@ impl Egress for BackendSet {
                 )
             }
         }
+    }
+}
+
+/// An [`Egress`] that also exposes its drained per-capability metrics.
+///
+/// Lets the consumer treat the in-process [`BackendSet`] and a future sidecar-client egress
+/// uniformly: pass either as `dyn Egress` to an invocation, then `drain_metrics()` after the run.
+pub trait MeteredEgress: Egress {
+    /// The per-capability metrics recorded this session.
+    fn drain_metrics(&self) -> BackendMetrics;
+}
+
+impl MeteredEgress for BackendSet {
+    fn drain_metrics(&self) -> BackendMetrics {
+        self.metrics()
     }
 }
 

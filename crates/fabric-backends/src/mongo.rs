@@ -61,7 +61,7 @@ const fn default_max_docs() -> usize {
 }
 
 /// Per-request `MongoDB` configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MongoConfig {
     /// Database host.
     host: String,
@@ -94,7 +94,7 @@ pub struct MongoConfig {
 }
 
 /// Metric recorded for each mongo operation.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MongoMetric {
     /// Operation type.
     action: String,

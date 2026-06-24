@@ -1,0 +1,28 @@
+[package]
+name = "fabricd"
+description = "Local egress sidecar for runlet — hosts fabric-backends' BackendSet behind a Unix-domain-socket wire protocol, so the sandbox box reaches db/mongo/mail/redis/amq/auth without linking the drivers"
+readme = "../../README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "fabricd"
+path = "src/main.rs"
+
+[dependencies]
+fabric-backends = { path = "../fabric-backends" }
+# The `Egress` trait (to dispatch via `BackendSet`) + the wire framing live in fabric-wire /
+# fabric-backends; the daemon links the drivers (via fabric-backends) so the box doesn't.
+fabric-wire = { path = "../fabric-wire" }
+tokio.workspace = true
+rustls.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true
