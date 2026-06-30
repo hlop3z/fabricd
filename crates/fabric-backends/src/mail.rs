@@ -17,7 +17,7 @@ use lettre::{SmtpTransport, Transport};
 use serde::{Deserialize, Serialize};
 
 use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{MailMetric, EgressError, ErrorOwner, Fault};
+use fabric_wire::{EgressError, ErrorOwner, Fault, MailMetric};
 
 /// Fallback fault for any mail error that isn't a classified SMTP reply.
 const MAIL_FALLBACK: Fault = Fault::new("MAIL_ERROR", true, ErrorOwner::Operator);

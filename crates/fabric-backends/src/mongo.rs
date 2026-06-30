@@ -30,7 +30,7 @@ use tokio::runtime::Handle;
 use tokio::time::timeout;
 
 use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{MongoMetric, EgressError, ErrorOwner, Fault};
+use fabric_wire::{EgressError, ErrorOwner, Fault, MongoMetric};
 
 /// Fallback fault for any mongo error without a more specific classification.
 const MONGO_FALLBACK: Fault = Fault::new("MONGO_ERROR", true, ErrorOwner::Operator);

@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{RedisMetric, EgressError, ErrorOwner, Fault};
+use fabric_wire::{EgressError, ErrorOwner, Fault, RedisMetric};
 
 /// Fallback fault for a Redis error with no specific predicate.
 const REDIS_FALLBACK: Fault = Fault::new("REDIS_ERROR", true, ErrorOwner::Operator);

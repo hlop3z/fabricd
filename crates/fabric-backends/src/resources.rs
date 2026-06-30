@@ -46,11 +46,7 @@ impl ResourceBinding {
     pub fn as_db(&self) -> Option<&DbConfig> {
         match self {
             Self::Db(cfg) => Some(cfg.as_ref()),
-            Self::Mongo(_)
-            | Self::Mail(_)
-            | Self::Redis(_)
-            | Self::Amq(_)
-            | Self::Auth(_) => None,
+            Self::Mongo(_) | Self::Mail(_) | Self::Redis(_) | Self::Amq(_) | Self::Auth(_) => None,
         }
     }
 
@@ -186,11 +182,31 @@ pub fn resolve<S: BuildHasher>(
 ) -> Result<ResolvedConfigs, ResolveError> {
     Ok(ResolvedConfigs {
         db: pick(table, init.db.as_deref(), "db", ResourceBinding::as_db)?,
-        mongo: pick(table, init.mongo.as_deref(), "mongo", ResourceBinding::as_mongo)?,
-        mail: pick(table, init.mail.as_deref(), "mail", ResourceBinding::as_mail)?,
-        redis: pick(table, init.redis.as_deref(), "redis", ResourceBinding::as_redis)?,
+        mongo: pick(
+            table,
+            init.mongo.as_deref(),
+            "mongo",
+            ResourceBinding::as_mongo,
+        )?,
+        mail: pick(
+            table,
+            init.mail.as_deref(),
+            "mail",
+            ResourceBinding::as_mail,
+        )?,
+        redis: pick(
+            table,
+            init.redis.as_deref(),
+            "redis",
+            ResourceBinding::as_redis,
+        )?,
         amq: pick(table, init.amq.as_deref(), "amq", ResourceBinding::as_amq)?,
-        auth: pick(table, init.auth.as_deref(), "auth", ResourceBinding::as_auth)?,
+        auth: pick(
+            table,
+            init.auth.as_deref(),
+            "auth",
+            ResourceBinding::as_auth,
+        )?,
     })
 }
 
@@ -213,10 +229,13 @@ where
     let Some(binding) = table.get(resource_name) else {
         return Err(ResolveError::NotFound(resource_name.to_owned()));
     };
-    extract(binding).cloned().map(Some).ok_or_else(|| ResolveError::KindMismatch {
-        name: resource_name.to_owned(),
-        kind: kind.to_owned(),
-    })
+    extract(binding)
+        .cloned()
+        .map(Some)
+        .ok_or_else(|| ResolveError::KindMismatch {
+            name: resource_name.to_owned(),
+            kind: kind.to_owned(),
+        })
 }
 
 #[cfg(test)]
@@ -251,8 +270,14 @@ mod tests {
     #[test]
     fn binding_kind_tag_selects_variant() {
         let table = table();
-        assert!(matches!(table.get("orders-db"), Some(ResourceBinding::Db(_))));
-        assert!(matches!(table.get("cache"), Some(ResourceBinding::Redis(_))));
+        assert!(matches!(
+            table.get("orders-db"),
+            Some(ResourceBinding::Db(_))
+        ));
+        assert!(matches!(
+            table.get("cache"),
+            Some(ResourceBinding::Redis(_))
+        ));
     }
 
     /// A named, kind-matching resource resolves; unnamed kinds stay `None`.

@@ -599,9 +599,7 @@ mod tests {
     /// An unknown egress name is rejected without touching any backend.
     #[test]
     fn unknown_resource_is_rejected() {
-        let err = BackendSet::new()
-            .call("nope", "ping", "{}")
-            .unwrap_err();
+        let err = BackendSet::new().call("nope", "ping", "{}").unwrap_err();
         assert_eq!(err.code, "IO_UNKNOWN");
     }
 
