@@ -534,6 +534,10 @@ criteria = "safe-to-deploy"
 version = "0.12.2"
 criteria = "safe-to-deploy"
 
+[[exemptions.pem]]
+version = "3.0.6"
+criteria = "safe-to-deploy"
+
 [[exemptions.phf]]
 version = "0.13.1"
 criteria = "safe-to-deploy"
@@ -622,6 +626,10 @@ criteria = "safe-to-deploy"
 version = "0.10.1"
 criteria = "safe-to-deploy"
 
+[[exemptions.rcgen]]
+version = "0.13.2"
+criteria = "safe-to-deploy"
+
 [[exemptions.redis]]
 version = "1.2.2"
 criteria = "safe-to-deploy"
@@ -696,6 +704,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.rustls-native-certs]]
 version = "0.8.4"
+criteria = "safe-to-deploy"
+
+[[exemptions.rustls-pemfile]]
+version = "2.2.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.rustls-pki-types]]
@@ -1140,6 +1152,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.xxhash-rust]]
 version = "0.8.15"
+criteria = "safe-to-deploy"
+
+[[exemptions.yasna]]
+version = "0.5.2"
 criteria = "safe-to-deploy"
 
 [[exemptions.yoke]]

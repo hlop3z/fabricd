@@ -880,6 +880,7 @@ version = "0.1.1"
 dependencies = [
  "fabric-backends",
  "fabric-wire",
+ "quinn",
  "rustls",
  "serde",
  "serde_json",
