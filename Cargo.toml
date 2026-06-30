@@ -94,6 +94,20 @@ mongodb = { version = "3", default-features = false, features = [
 rustls = "0.23"
 tokio-rustls = "0.26"
 webpki-roots = "1"
+# QUIC transport for the box↔fabricd remote egress link (the network alternative to the local
+# UDS). `default-features = false` + `rustls-aws-lc-rs` keeps it on the one process-wide
+# `aws-lc-rs` rustls provider (NOT the default `ring`), reusing the existing crypto stack. See
+# `docs/design/network-fabric.md` (QUIC remote transport).
+quinn = { version = "0.11", default-features = false, features = [
+    "runtime-tokio",
+    "rustls-aws-lc-rs",
+    "log",
+] }
+# Loads operator-supplied PEM cert/key for the QUIC server (`fabricd`) and the box's pinned cert.
+rustls-pemfile = "2"
+# Self-signed cert generation for the QUIC transport tests only (a dev-dependency). `aws_lc_rs`
+# backend (not `ring`) to avoid pulling a second crypto stack even into tests.
+rcgen = { version = "0.13", default-features = false, features = ["aws_lc_rs", "pem"] }
 reqwest = { version = "0.13", default-features = false, features = [
     "json",
     "blocking",
