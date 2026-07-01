@@ -28,7 +28,21 @@ categories = ["development-tools"]
 # -- bin (HTTP front) --
 axum = { version = "0.8", features = ["json"] }
 mimalloc = { version = "0.1", default-features = false }
-tracing-subscriber = "0.3"
+# `json` for structured stdout logs, `env-filter` for RUST_LOG-style level control.
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+# -- observability (traces): OpenTelemetry, OTLP over gRPC to a local collector. `grpc-tonic`
+# WITHOUT any TLS feature ⇒ plaintext gRPC to an in-pod/localhost collector, so no second crypto
+# stack (`ring`) is linked (the collector, not the box, does TLS to the backend). Traces PUSH;
+# metrics stay Prometheus PULL. Versions are a compatible set: opentelemetry* 0.28 +
+# tracing-opentelemetry 0.29 (0.28 brought the thread-based BatchSpanProcessor, SdkTracerProvider,
+# and Resource::builder).
+opentelemetry = "0.28"
+opentelemetry_sdk = "0.28"
+opentelemetry-otlp = { version = "0.28", default-features = false, features = [
+    "grpc-tonic",
+    "trace",
+] }
+tracing-opentelemetry = "0.29"
 
 # -- shared --
 serde = { version = "1", features = ["derive"] }
@@ -108,8 +122,6 @@ quinn = { version = "0.11", default-features = false, features = [
     "rustls-aws-lc-rs",
     "log",
 ] }
-# Loads operator-supplied PEM cert/key for the QUIC server (`fabricd`) and the box's pinned cert.
-rustls-pemfile = "2"
 # Self-signed cert generation for the QUIC transport tests only (a dev-dependency). `aws_lc_rs`
 # backend (not `ring`) to avoid pulling a second crypto stack even into tests.
 rcgen = { version = "0.13", default-features = false, features = ["aws_lc_rs", "pem"] }
