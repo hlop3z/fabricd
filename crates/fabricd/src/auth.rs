@@ -24,6 +24,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use fabric_backends::sa_token::{JwksVerifier, SaTokenVerifyConfig};
+use fabric_wire::ct_eq;
 use serde::Deserialize;
 
 /// Stable request-category code the box surfaces (as a `400`) when client auth fails.
@@ -218,20 +219,6 @@ impl ClientAuthenticator for SaTokenAuthenticator {
             .verify(presented)
             .map_err(|err| AuthReject::new(&err.to_string()))
     }
-}
-
-/// Constant-time byte-slice equality. A length difference returns early (a token's length is not the
-/// secret); equal-length inputs are compared without an early exit. Mirrors the box's `/execute`
-/// bearer compare.
-fn ct_eq(lhs: &[u8], rhs: &[u8]) -> bool {
-    if lhs.len() != rhs.len() {
-        return false;
-    }
-    let mut acc = 0_u8;
-    for (left, right) in lhs.iter().zip(rhs.iter()) {
-        acc |= left ^ right;
-    }
-    acc == 0
 }
 
 #[cfg(test)]

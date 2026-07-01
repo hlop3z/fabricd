@@ -96,6 +96,24 @@ impl ResourceBinding {
     }
 }
 
+/// A [`ResourceBinding`] associated with the tenant authorized to use it.
+///
+/// The operator table maps a logical name to one of these. `tenant: None` is a **global**
+/// (single-tenant / loopback) binding — resolvable only by a session that carries no tenant, so
+/// existing non-multitenant configs keep working. `tenant: Some(id)` is resolvable only by a
+/// session for exactly that tenant; a cross-tenant access never resolves (credentials and resources
+/// never cross workspace boundaries). The binding's own `kind`+config are flattened in, so a table
+/// entry reads `{"tenant":"ws_a","kind":"db","host":…}`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct TenantResourceBinding {
+    /// The tenant authorized to resolve this binding (`None` = global / single-tenant).
+    #[serde(default)]
+    pub tenant: Option<String>,
+    /// The driver binding (kind tag + connection config).
+    #[serde(flatten)]
+    pub binding: ResourceBinding,
+}
+
 /// The operator config resolved for one session, ready to wire into a [`BackendSet`].
 ///
 /// [`BackendSet`](crate::BackendSet)'s daemon-side constructor. Each field is `Some` only when the
@@ -170,39 +188,58 @@ impl ResolveError {
     }
 }
 
-/// Resolves each name selected in `init` against the operator `table`. A `None` selection stays
-/// `None`; a named resource must exist and match the kind.
+/// Resolves each name selected in `init` against the operator `table`, scoped to the session tenant.
+///
+/// A `None` selection stays `None`; a named resource must exist, be authorized for the session's
+/// tenant (`init.tenant`), and match the kind.
 ///
 /// # Errors
 ///
-/// Returns a [`ResolveError`] for the first unknown name or kind mismatch.
+/// Returns a [`ResolveError`] for the first unknown / out-of-tenant name or kind mismatch.
 pub fn resolve<S: BuildHasher>(
-    table: &HashMap<String, ResourceBinding, S>,
+    table: &HashMap<String, TenantResourceBinding, S>,
     init: &WireInit,
 ) -> Result<ResolvedConfigs, ResolveError> {
+    let tenant = init.tenant.as_deref();
     Ok(ResolvedConfigs {
-        db: pick(table, init.db.as_deref(), "db", ResourceBinding::as_db)?,
+        db: pick(
+            table,
+            tenant,
+            init.db.as_deref(),
+            "db",
+            ResourceBinding::as_db,
+        )?,
         mongo: pick(
             table,
+            tenant,
             init.mongo.as_deref(),
             "mongo",
             ResourceBinding::as_mongo,
         )?,
         mail: pick(
             table,
+            tenant,
             init.mail.as_deref(),
             "mail",
             ResourceBinding::as_mail,
         )?,
         redis: pick(
             table,
+            tenant,
             init.redis.as_deref(),
             "redis",
             ResourceBinding::as_redis,
         )?,
-        amq: pick(table, init.amq.as_deref(), "amq", ResourceBinding::as_amq)?,
+        amq: pick(
+            table,
+            tenant,
+            init.amq.as_deref(),
+            "amq",
+            ResourceBinding::as_amq,
+        )?,
         auth: pick(
             table,
+            tenant,
             init.auth.as_deref(),
             "auth",
             ResourceBinding::as_auth,
@@ -210,10 +247,16 @@ pub fn resolve<S: BuildHasher>(
     })
 }
 
-/// Resolves one optional name: `None` → `Ok(None)`; a known, kind-matching name → its cloned
-/// config; an unknown name or kind mismatch → the corresponding [`ResolveError`].
+/// Resolves one optional name, scoped to `session_tenant`: `None` → `Ok(None)`; a known,
+/// tenant-authorized, kind-matching name → its cloned config; a kind mismatch → [`ResolveError`].
+///
+/// Tenant scoping is enforced here: a binding resolves only when its `tenant` equals the session's
+/// tenant (both `None` = the single-tenant/loopback case). A cross-tenant access is reported as
+/// `NotFound` — identical to a name that doesn't exist — so a tenant cannot probe the existence of
+/// another tenant's resources.
 fn pick<T, F, S>(
-    table: &HashMap<String, ResourceBinding, S>,
+    table: &HashMap<String, TenantResourceBinding, S>,
+    session_tenant: Option<&str>,
     name: Option<&str>,
     kind: &str,
     extract: F,
@@ -226,10 +269,15 @@ where
     let Some(resource_name) = name else {
         return Ok(None);
     };
-    let Some(binding) = table.get(resource_name) else {
+    let Some(entry) = table.get(resource_name) else {
         return Err(ResolveError::NotFound(resource_name.to_owned()));
     };
-    extract(binding)
+    // The trust boundary: a binding resolves only within its authorized tenant. A mismatch is
+    // indistinguishable from absence, so cross-tenant existence never leaks.
+    if entry.tenant.as_deref() != session_tenant {
+        return Err(ResolveError::NotFound(resource_name.to_owned()));
+    }
+    extract(&entry.binding)
         .cloned()
         .map(Some)
         .ok_or_else(|| ResolveError::KindMismatch {
@@ -243,12 +291,13 @@ mod tests {
     //! Resolution against an operator table: kind-tag deserialization, the happy path, unknown
     //! names, and kind mismatches.
 
-    use super::{ResolveError, ResourceBinding, resolve};
+    use super::{ResolveError, ResourceBinding, TenantResourceBinding, resolve};
     use fabric_wire::WireInit;
     use std::collections::HashMap;
 
-    /// One `db` (`orders-db`) and one `redis` (`cache`) binding, parsed from JSON.
-    fn table() -> HashMap<String, ResourceBinding> {
+    /// One global `db` (`orders-db`) and one global `redis` (`cache`) binding, parsed from JSON
+    /// (no `tenant` → global / single-tenant).
+    fn table() -> HashMap<String, TenantResourceBinding> {
         serde_json::from_str(
             r#"{
                 "orders-db": {"kind":"db","host":"h","user":"u","password":"p","database":"d"},
@@ -258,29 +307,53 @@ mod tests {
         .unwrap_or_else(|err| unreachable!("valid resource table: {err}"))
     }
 
-    /// A `WireInit` selecting one db name (other kinds unset).
-    fn init_db(name: &str) -> WireInit {
+    /// A tenant-scoped table: `a-db` bound for tenant `ws_a`, `b-db` bound for tenant `ws_b`.
+    fn tenant_table() -> HashMap<String, TenantResourceBinding> {
+        serde_json::from_str(
+            r#"{
+                "a-db": {"tenant":"ws_a","kind":"db","host":"ha","user":"u","password":"p","database":"d"},
+                "b-db": {"tenant":"ws_b","kind":"db","host":"hb","user":"u","password":"p","database":"d"}
+            }"#,
+        )
+        .unwrap_or_else(|err| unreachable!("valid tenant resource table: {err}"))
+    }
+
+    /// A `WireInit` selecting one db name (other kinds unset), for the given session tenant.
+    fn init_db_for(name: &str, tenant: Option<&str>) -> WireInit {
         WireInit {
             db: Some(name.to_owned()),
+            tenant: tenant.map(str::to_owned),
             ..WireInit::default()
         }
     }
 
-    /// The `kind` tag selects the variant.
+    /// A `WireInit` selecting one db name with no session tenant (single-tenant path).
+    fn init_db(name: &str) -> WireInit {
+        init_db_for(name, None)
+    }
+
+    /// The `kind` tag selects the variant (flattened under the tenant wrapper).
     #[test]
     fn binding_kind_tag_selects_variant() {
         let table = table();
         assert!(matches!(
-            table.get("orders-db"),
+            table.get("orders-db").map(|entry| &entry.binding),
             Some(ResourceBinding::Db(_))
         ));
         assert!(matches!(
-            table.get("cache"),
+            table.get("cache").map(|entry| &entry.binding),
             Some(ResourceBinding::Redis(_))
         ));
+        assert!(
+            table
+                .get("orders-db")
+                .and_then(|entry| entry.tenant.as_deref())
+                .is_none(),
+            "no tenant tag → global binding"
+        );
     }
 
-    /// A named, kind-matching resource resolves; unnamed kinds stay `None`.
+    /// A named, kind-matching global resource resolves for a no-tenant session; unnamed kinds stay `None`.
     #[test]
     fn resolves_named_db() {
         let resolved = resolve(&table(), &init_db("orders-db"))
@@ -302,5 +375,41 @@ mod tests {
     fn kind_mismatch_is_reported() {
         let err = resolve(&table(), &init_db("cache")).unwrap_err();
         assert_eq!(err.code(), "RESOURCE_KIND_MISMATCH");
+    }
+
+    /// A name within the session tenant's bindings resolves.
+    #[test]
+    fn in_tenant_name_resolves() {
+        let resolved = resolve(&tenant_table(), &init_db_for("a-db", Some("ws_a")))
+            .unwrap_or_else(|_err| unreachable!("ws_a resolves its own binding"));
+        assert!(resolved.db.is_some(), "in-tenant db resolved");
+    }
+
+    /// A name bound only for another tenant is refused (as `NotFound`, so existence never leaks) —
+    /// and no config for the other tenant's resource is returned.
+    #[test]
+    fn cross_tenant_name_is_refused() {
+        let err = resolve(&tenant_table(), &init_db_for("b-db", Some("ws_a"))).unwrap_err();
+        assert_eq!(
+            err.code(),
+            "RESOURCE_NOT_FOUND",
+            "cross-tenant looks absent"
+        );
+        assert!(matches!(err, ResolveError::NotFound(_)));
+    }
+
+    /// A tenant-scoped binding does not resolve for a session with no tenant, and vice versa.
+    #[test]
+    fn tenant_and_global_do_not_cross() {
+        // Tenant-scoped binding, no-tenant session → refused.
+        assert!(
+            resolve(&tenant_table(), &init_db("a-db")).is_err(),
+            "no-tenant session cannot reach a tenant-scoped binding"
+        );
+        // Global binding, tenant session → refused.
+        assert!(
+            resolve(&table(), &init_db_for("orders-db", Some("ws_a"))).is_err(),
+            "tenant session cannot reach a global binding"
+        );
     }
 }

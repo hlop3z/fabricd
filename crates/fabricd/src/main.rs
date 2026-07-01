@@ -27,7 +27,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use fabric_backends::{AsyncDeps, BackendSet, ResourceBinding, resolve};
+use fabric_backends::{AsyncDeps, BackendSet, TenantResourceBinding, resolve};
 use fabric_wire::Egress as _;
 use fabric_wire::quic::{ServerTls, server_endpoint};
 use fabric_wire::wire::{WireCall, WireRequest, WireResponse, read_frame, write_frame};
@@ -60,8 +60,9 @@ struct FabricdConfig {
     /// Socket path to bind (env `FABRICD_SOCKET` overrides; defaults to [`DEFAULT_SOCKET`] only when
     /// QUIC is not configured).
     socket: Option<String>,
-    /// The operator credential table: logical name → driver binding. The box never sees these.
-    resources: HashMap<String, ResourceBinding>,
+    /// The operator credential table: logical name → tenant-scoped driver binding. The box never
+    /// sees these; `fabricd` resolves a name only within the session tenant's authorized bindings.
+    resources: HashMap<String, TenantResourceBinding>,
     /// Tier-0 ceiling on a `db` resource's `statement_timeout_ms` (`0` = no clamp).
     max_statement_timeout_ms: u64,
     /// Remote QUIC listener (the network transport). Omit for a local-only UDS sidecar.
@@ -88,8 +89,8 @@ struct QuicListenerConfig {
 /// Shared, read-only daemon state handed to each connection.
 #[derive(Debug)]
 struct Shared {
-    /// Operator credential table.
-    table: HashMap<String, ResourceBinding>,
+    /// Operator credential table (tenant-scoped bindings).
+    table: HashMap<String, TenantResourceBinding>,
     /// `db` statement-timeout ceiling (Tier 0).
     max_statement_timeout_ms: u64,
     /// Running count of client-auth rejections (a spike is a security signal).
@@ -374,8 +375,10 @@ where
         return Ok(());
     }
 
-    // The trust boundary: resolve the session's logical names against the operator table. An
-    // unknown name or kind mismatch is reported back so the box returns a `400`.
+    // The trust boundary: resolve the session's logical names against the operator table, scoped to
+    // the session's trusted tenant (`init.tenant`). An unknown / out-of-tenant name or kind mismatch
+    // is reported back so the box returns a `400`; a cross-tenant name resolves as `NotFound` so
+    // existence never leaks across workspaces.
     let mut resolved = match resolve(&shared.table, &init) {
         Ok(resolved) => resolved,
         Err(err) => {

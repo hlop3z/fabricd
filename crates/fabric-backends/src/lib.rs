@@ -21,5 +21,7 @@ pub mod resources;
 pub mod sa_token;
 
 pub use crate::backendset::{AsyncDeps, BackendSet};
-pub use crate::resources::{ResolveError, ResolvedConfigs, ResourceBinding, resolve};
+pub use crate::resources::{
+    ResolveError, ResolvedConfigs, ResourceBinding, TenantResourceBinding, resolve,
+};
 pub use crate::sa_token::{JwksVerifier, SaTokenVerifyConfig, VerifyError};
