@@ -310,7 +310,7 @@ fn build_uri(config: &MongoConfig) -> String {
     uri.push_str(&config.host);
     uri.push(':');
     uri.push_str(&config.port.to_string());
-    uri.push_str("/?directConnection=true&appName=jsbox");
+    uri.push_str("/?directConnection=true&appName=runlet");
     uri.push_str("&connectTimeoutMS=5000&serverSelectionTimeoutMS=5000");
     if config.username.is_some() {
         uri.push_str("&authSource=");
