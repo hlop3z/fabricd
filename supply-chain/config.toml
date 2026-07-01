@@ -43,7 +43,7 @@ version = "2.1.5"
 criteria = "safe-to-deploy"
 
 [[exemptions.anyhow]]
-version = "1.0.102"
+version = "1.0.103"
 criteria = "safe-to-deploy"
 
 [[exemptions.arcstr]]
@@ -402,6 +402,10 @@ criteria = "safe-to-deploy"
 version = "0.3.100"
 criteria = "safe-to-deploy"
 
+[[exemptions.jsonwebtoken]]
+version = "10.4.0"
+criteria = "safe-to-deploy"
+
 [[exemptions.lettre]]
 version = "0.11.22"
 criteria = "safe-to-deploy"
@@ -599,11 +603,11 @@ version = "0.1.4"
 criteria = "safe-to-deploy"
 
 [[exemptions.quinn]]
-version = "0.11.9"
+version = "0.11.11"
 criteria = "safe-to-deploy"
 
 [[exemptions.quinn-proto]]
-version = "0.11.14"
+version = "0.11.15"
 criteria = "safe-to-deploy"
 
 [[exemptions.quoted_printable]]
@@ -794,12 +798,20 @@ criteria = "safe-to-deploy"
 version = "1.4.8"
 criteria = "safe-to-deploy"
 
+[[exemptions.signature]]
+version = "2.2.0"
+criteria = "safe-to-deploy"
+
 [[exemptions.simd_cesu8]]
 version = "1.1.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.simdutf8]]
 version = "0.1.5"
+criteria = "safe-to-deploy"
+
+[[exemptions.simple_asn1]]
+version = "0.6.4"
 criteria = "safe-to-deploy"
 
 [[exemptions.siphasher]]
@@ -1180,6 +1192,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.zerofrom-derive]]
 version = "0.1.7"
+criteria = "safe-to-deploy"
+
+[[exemptions.zeroize_derive]]
+version = "1.5.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.zerotrie]]

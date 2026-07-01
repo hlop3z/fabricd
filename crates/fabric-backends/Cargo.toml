@@ -30,6 +30,7 @@ tokio-rustls.workspace = true
 webpki-roots.workspace = true
 mongodb.workspace = true
 reqwest.workspace = true
+jsonwebtoken.workspace = true
 amqprs.workspace = true
 async-nats.workspace = true
 redis.workspace = true

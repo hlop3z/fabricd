@@ -113,6 +113,15 @@ reqwest = { version = "0.13", default-features = false, features = [
     "blocking",
     "rustls",
 ] }
+# Offline JWT/JWKS verification for the `fabricd` QUIC `sa-token` client authenticator (k8s
+# projected ServiceAccount tokens). `aws_lc_rs` backend (v10) reuses the one process-wide
+# `aws-lc-rs` provider — no `ring`, no second crypto stack. `use_pem` enables
+# `EncodingKey::from_rsa_pem` for the hermetic unit tests; `DecodingKey::from_jwk` builds keys
+# straight from the cluster JWKS (no hand-parsing of RSA modulus/exponent).
+jsonwebtoken = { version = "10", default-features = false, features = [
+    "use_pem",
+    "aws_lc_rs",
+] }
 # TLS (`amqps://`) reuses the existing `aws-lc-rs` rustls provider (tokio-rustls), not a
 # second crypto stack.
 amqprs = { version = "2", features = ["tls"] }
