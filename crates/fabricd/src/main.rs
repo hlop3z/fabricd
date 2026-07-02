@@ -21,6 +21,7 @@ use std::env;
 use std::error::Error;
 use std::fs;
 use std::future::pending;
+use std::io;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -29,13 +30,14 @@ use std::time::Duration;
 
 use fabric_backends::{AsyncDeps, BackendSet, TenantResourceBinding, resolve};
 use fabric_wire::Egress as _;
+use fabric_wire::breaker::{BreakerConfig, CircuitBreaker};
 use fabric_wire::quic::{ServerTls, server_endpoint};
 use fabric_wire::wire::{WireCall, WireRequest, WireResponse, read_frame, write_frame};
 use quinn::{Connection, Endpoint, Incoming};
 use rustls::crypto::aws_lc_rs;
 use serde::Deserialize;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::UnixListener;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream, UnixListener};
 use tokio::runtime::Handle;
 use tokio::signal;
 use tokio::sync::Semaphore;
@@ -53,6 +55,9 @@ const fn default_max_connections() -> usize {
     1024
 }
 
+/// Default `db` circuit-breaker cool-down (ms) when `db_breaker_cooldown_ms` is `0`.
+const DEFAULT_BREAKER_COOLDOWN_MS: u64 = 5000;
+
 /// Daemon configuration, loaded from the `FABRICD_CONFIG` path (default `fabricd.json`).
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
@@ -65,6 +70,19 @@ struct FabricdConfig {
     resources: HashMap<String, TenantResourceBinding>,
     /// Tier-0 ceiling on a `db` resource's `statement_timeout_ms` (`0` = no clamp).
     max_statement_timeout_ms: u64,
+    /// Circuit breaker (Tier 3): consecutive `db` connect failures (per `host:port`) that trip
+    /// the breaker open. `0` = off. While open, `db` calls to that target fast-fail
+    /// `DB_CIRCUIT_OPEN` (retryable) instead of waiting on the connect timeout to a dead
+    /// database (see `docs/design/resilience.md`).
+    db_breaker_threshold: u32,
+    /// How long (ms) the `db` circuit breaker stays open before allowing a half-open probe.
+    /// Used only when `db_breaker_threshold > 0`. `0` = default 5000.
+    db_breaker_cooldown_ms: u64,
+    /// Bind address for a plaintext HTTP `GET /metrics` listener (Prometheus text exposition:
+    /// breaker trips, client-auth failures), e.g. `127.0.0.1:9090`. Omit (the default) for no
+    /// metrics listener. Plaintext — bind it loopback/pod-local and scope it like the box's
+    /// `/metrics` (never a public ingress).
+    metrics_listen: Option<String>,
     /// Remote QUIC listener (the network transport). Omit for a local-only UDS sidecar.
     quic: Option<QuicListenerConfig>,
 }
@@ -93,6 +111,9 @@ struct Shared {
     table: HashMap<String, TenantResourceBinding>,
     /// `db` statement-timeout ceiling (Tier 0).
     max_statement_timeout_ms: u64,
+    /// Daemon-global per-target `db` circuit breaker (Tier 3); `None` = off. Shared across
+    /// sessions — trip state must outlive the one-request session or it never accumulates.
+    breaker: Option<Arc<CircuitBreaker>>,
     /// Running count of client-auth rejections (a spike is a security signal).
     auth_failures: AtomicU64,
 }
@@ -126,9 +147,21 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     let config = load_config()?;
+    // One breaker for the daemon's lifetime: per-target trip state accumulates across the
+    // one-request sessions. `CircuitBreaker::new` returns `None` when the threshold is `0` (off).
+    let breaker = CircuitBreaker::new(BreakerConfig {
+        threshold: config.db_breaker_threshold,
+        cooldown: Duration::from_millis(if config.db_breaker_cooldown_ms > 0 {
+            config.db_breaker_cooldown_ms
+        } else {
+            DEFAULT_BREAKER_COOLDOWN_MS
+        }),
+    })
+    .map(Arc::new);
     let shared = Arc::new(Shared {
         table: config.resources,
         max_statement_timeout_ms: config.max_statement_timeout_ms,
+        breaker,
         auth_failures: AtomicU64::new(0),
     });
 
@@ -145,6 +178,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         resources = shared.table.len(),
         uds = ?uds_path,
         quic = config.quic.is_some(),
+        db_breaker = shared.breaker.is_some(),
         "fabricd configuration loaded"
     );
     if uds_path.is_none() && config.quic.is_none() {
@@ -184,7 +218,25 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         None => None,
     };
 
-    run_listeners(uds.as_ref(), &uds_auth, quic.as_ref(), &shared).await;
+    // Build the metrics listener (if any): a plaintext `GET /metrics` scrape endpoint. Bound at
+    // boot so a bad address fails loud instead of silently dropping observability.
+    let metrics = match config.metrics_listen.as_deref() {
+        Some(addr) => {
+            let listener = TcpListener::bind(addr).await?;
+            info!(listen = %addr, "fabricd listening (metrics)");
+            Some(listener)
+        }
+        None => None,
+    };
+
+    run_listeners(
+        uds.as_ref(),
+        &uds_auth,
+        quic.as_ref(),
+        metrics.as_ref(),
+        &shared,
+    )
+    .await;
 
     // Clean up the socket file on a graceful exit.
     if let Some(path) = uds_path.as_deref() {
@@ -226,6 +278,7 @@ async fn run_listeners(
     uds: Option<&UnixListener>,
     uds_auth: &Arc<dyn ClientAuthenticator>,
     quic: Option<&QuicListener>,
+    metrics: Option<&TcpListener>,
     shared: &Arc<Shared>,
 ) {
     let uds_loop = async {
@@ -246,12 +299,86 @@ async fn run_listeners(
             None => pending::<()>().await,
         }
     };
+    let metrics_loop = async {
+        match metrics {
+            Some(listener) => metrics_accept_loop(listener, shared).await,
+            None => pending::<()>().await,
+        }
+    };
 
     tokio::select! {
         () = uds_loop => {}
         () = quic_loop => {}
+        () = metrics_loop => {}
         () = shutdown_signal() => info!("shutdown signal received"),
     }
+}
+
+/// Accepts metrics-scrape connections, answering each once (`GET /metrics`) on its own task.
+/// An accept error stops the metrics listener but **parks** instead of returning — losing the
+/// observability endpoint must never take down the egress listeners (the `select!` in
+/// [`run_listeners`] treats a resolved loop as shutdown).
+async fn metrics_accept_loop(listener: &TcpListener, shared: &Arc<Shared>) {
+    loop {
+        match listener.accept().await {
+            Ok((stream, _addr)) => {
+                let scrape_shared = Arc::clone(shared);
+                drop(task::spawn(async move {
+                    if let Err(err) = serve_metrics_once(stream, &scrape_shared).await {
+                        debug!(error = %err, "metrics connection failed");
+                    }
+                }));
+            }
+            Err(err) => {
+                warn!(error = %err, "metrics accept failed; metrics listener stopped");
+                break;
+            }
+        }
+    }
+    pending::<()>().await;
+}
+
+/// Answers one HTTP exchange on `stream`: `GET /metrics` gets the Prometheus text exposition,
+/// anything else a `404`. Just enough HTTP for a scrape — no framework, no TLS (the listener is
+/// plaintext by contract; bind it loopback/pod-local).
+async fn serve_metrics_once(mut stream: TcpStream, shared: &Shared) -> io::Result<()> {
+    // One read is enough: a scrape's request head fits a packet, and only the request line matters.
+    let mut buf = [0_u8; 1024];
+    let read = stream.read(&mut buf).await?;
+    let head = String::from_utf8_lossy(buf.get(..read).unwrap_or(&[])).into_owned();
+    let response = if is_metrics_request(&head) {
+        let body = render_metrics(shared);
+        format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: text/plain; version=0.0.4\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        )
+    } else {
+        "HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\nconnection: close\r\n\r\n".to_owned()
+    };
+    stream.write_all(response.as_bytes()).await?;
+    stream.shutdown().await
+}
+
+/// Returns `true` when the request head's first line is a `GET /metrics` (any HTTP version).
+fn is_metrics_request(head: &str) -> bool {
+    head.lines()
+        .next()
+        .is_some_and(|line| line == "GET /metrics" || line.starts_with("GET /metrics "))
+}
+
+/// Renders the daemon's Prometheus text exposition: db breaker trips (Tier 3) and client-auth
+/// rejections — the daemon-scoped counters that don't fit the per-session `Drain` metrics.
+fn render_metrics(shared: &Shared) -> String {
+    let trips = shared.breaker.as_ref().map_or(0, |breaker| breaker.trips());
+    let auth_failures = shared.auth_failures.load(Ordering::Relaxed);
+    format!(
+        "# HELP fabricd_db_breaker_trips_total Cumulative db circuit-breaker open transitions (Tier 3).\n\
+         # TYPE fabricd_db_breaker_trips_total counter\n\
+         fabricd_db_breaker_trips_total {trips}\n\
+         # HELP fabricd_auth_failures_total Cumulative client-auth rejections (a spike is a security signal).\n\
+         # TYPE fabricd_auth_failures_total counter\n\
+         fabricd_auth_failures_total {auth_failures}\n"
+    )
 }
 
 /// Accepts UDS connections forever, spawning a per-connection session handler for each.
@@ -397,9 +524,10 @@ where
 
     let deps = AsyncDeps {
         handle: Handle::current(),
-        // The breaker is box-side resilience today; the daemon relies on the per-execution
-        // deadline (carried in `Init`) to bound a hung backend.
-        breaker: None,
+        // Daemon-global (Tier 3): the daemon owns the driver connections, so it owns the
+        // connect breaker. The per-execution deadline (carried in `Init`) still bounds a
+        // hung backend once connected.
+        breaker: shared.breaker.clone(),
         timeout: Duration::from_millis(init.timeout_ms),
     };
     let backends = Arc::new(BackendSet::from_configs(&resolved, &deps));
@@ -455,5 +583,84 @@ async fn shutdown_signal() {
     tokio::select! {
         () = ctrl_c => {}
         () = terminate => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! The metrics endpoint's request-line matching and text exposition.
+
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicU64;
+    use std::time::Duration;
+
+    use fabric_wire::breaker::{BreakerConfig, CircuitBreaker};
+
+    use super::{Shared, is_metrics_request, render_metrics};
+
+    /// A `Shared` with no resources, an optional breaker, and a seeded auth-failure count.
+    fn shared(breaker: Option<Arc<CircuitBreaker>>, auth_failures: u64) -> Shared {
+        Shared {
+            table: HashMap::new(),
+            max_statement_timeout_ms: 0,
+            breaker,
+            auth_failures: AtomicU64::new(auth_failures),
+        }
+    }
+
+    #[test]
+    fn metrics_request_line_matches_get_metrics_only() {
+        assert!(
+            is_metrics_request("GET /metrics HTTP/1.1\r\nhost: x\r\n\r\n"),
+            "a scrape request matches"
+        );
+        assert!(
+            !is_metrics_request("GET / HTTP/1.1\r\n\r\n"),
+            "other paths 404"
+        );
+        assert!(
+            !is_metrics_request("POST /metrics HTTP/1.1\r\n\r\n"),
+            "other methods 404"
+        );
+        assert!(
+            !is_metrics_request("GET /metricsx HTTP/1.1\r\n\r\n"),
+            "a path prefix does not match"
+        );
+    }
+
+    #[test]
+    fn renders_zero_trips_without_a_breaker() {
+        let text = render_metrics(&shared(None, 0));
+        assert!(
+            text.contains("fabricd_db_breaker_trips_total 0"),
+            "breaker off still exposes the series: {text}"
+        );
+        assert!(
+            text.contains("fabricd_auth_failures_total 0"),
+            "auth failures start at zero: {text}"
+        );
+    }
+
+    #[test]
+    fn renders_live_counters() {
+        let breaker = CircuitBreaker::new(BreakerConfig {
+            threshold: 1,
+            cooldown: Duration::from_secs(60),
+        })
+        .map(Arc::new);
+        let state = shared(breaker, 7);
+        if let Some(cb) = state.breaker.as_ref() {
+            cb.record("db:1", false); // threshold 1 → one failure trips it open
+        }
+        let text = render_metrics(&state);
+        assert!(
+            text.contains("fabricd_db_breaker_trips_total 1"),
+            "a trip is counted: {text}"
+        );
+        assert!(
+            text.contains("fabricd_auth_failures_total 7"),
+            "auth failures render: {text}"
+        );
     }
 }
