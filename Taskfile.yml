@@ -128,7 +128,12 @@ tasks:
   setup:
     desc: Install all required cargo tools
     cmds:
-      - cargo install cargo-audit cargo-deny cargo-vet
+      # cargo-vet is PINNED in lockstep with CI (.github/workflows/ci.yml): the
+      # imports.lock format changes across versions (0.10.2 writes `trusted-publisher`
+      # entries that 0.10.0 cannot parse), so local and CI must run the same version.
+      # Bump both together.
+      - cargo install cargo-audit cargo-deny
+      - cargo install cargo-vet --version 0.10.2 --locked
 
   # ── Clean ─────────────────────────────────────────────────
 
