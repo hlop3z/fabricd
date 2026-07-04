@@ -28,7 +28,7 @@ tasks:
   test-integration:
     desc: Run integration tests against the live server
     cmds:
-      - python test_simple.py
+      - python tests/test_simple.py
 
   test-db-up:
     desc: Start PostgreSQL and CockroachDB containers

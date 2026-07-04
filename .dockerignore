@@ -4,7 +4,7 @@ target/
 *.md
 !README.md
 docker-compose.yml
-test_simple.py
+tests/
 scripts/
 PLAN.md
 config.json

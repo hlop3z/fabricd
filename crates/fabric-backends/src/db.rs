@@ -689,8 +689,7 @@ fn as_tosql_ref(param: &ParamValue) -> &(dyn ToSql + Sync) {
 fn build_metric(action: &str, result: &Result<String, DbError>, start: Instant) -> DbMetric {
     let (rows_ret, rows_aff, trunc) = result
         .as_ref()
-        .map(|json| extract_metric_info(action, json))
-        .unwrap_or((0, 0, false));
+        .map_or((0, 0, false), |json| extract_metric_info(action, json));
 
     DbMetric {
         action: action.into(),

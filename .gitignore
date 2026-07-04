@@ -303,3 +303,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .test-run/
 # Working dir the A/B stress harness starts servers from
 .stress-run/
+
+# Personal/session-local root files (kept locally, untracked)
+claude.sh
+next_session.md

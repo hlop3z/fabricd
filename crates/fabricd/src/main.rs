@@ -37,7 +37,9 @@ use quinn::{Connection, Endpoint, Incoming};
 use rustls::crypto::aws_lc_rs;
 use serde::Deserialize;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream, UnixListener};
+#[cfg(unix)]
+use tokio::net::UnixListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::runtime::Handle;
 use tokio::signal;
 use tokio::sync::Semaphore;
@@ -48,6 +50,7 @@ use tracing_subscriber::fmt::init as init_tracing;
 use crate::auth::{ClientAuthConfig, ClientAuthenticator};
 
 /// Default socket path when neither config nor `FABRICD_SOCKET` sets one (and QUIC is off).
+#[cfg(unix)]
 const DEFAULT_SOCKET: &str = "/tmp/fabricd.sock";
 
 /// Default ceiling on concurrently-open QUIC connections (hardening; config-overridable).
@@ -167,12 +170,23 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Decide which listeners to run. The local UDS stays the zero-config default; QUIC engages only
     // when `quic` is set. An explicit socket (env or config) always binds UDS too, so one daemon can
-    // serve a local box (UDS) and remote boxes (QUIC) at once.
+    // serve a local box (UDS) and remote boxes (QUIC) at once. UDS is a Unix-only tokio API — on
+    // other platforms a configured socket is rejected loudly and QUIC is the sole transport.
     let explicit_socket = env::var("FABRICD_SOCKET")
         .ok()
         .or_else(|| config.socket.clone());
+    #[cfg(not(unix))]
+    if explicit_socket.is_some() {
+        return Err(
+            "`socket` / `FABRICD_SOCKET` (UDS) is unsupported on this platform; configure `quic`"
+                .into(),
+        );
+    }
+    #[cfg(unix)]
     let uds_path =
         explicit_socket.or_else(|| config.quic.is_none().then(|| DEFAULT_SOCKET.to_owned()));
+    #[cfg(not(unix))]
+    let uds_path: Option<String> = None;
 
     info!(
         resources = shared.table.len(),
@@ -187,6 +201,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Build the UDS listener (if any). UDS is gated by filesystem permissions, so it uses the
     // no-op authenticator — the box sends no token over it.
+    #[cfg(unix)]
     let uds = match uds_path.as_deref() {
         Some(path) => {
             // A stale socket file from a previous run would make `bind` fail with EADDRINUSE.
@@ -197,6 +212,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
         None => None,
     };
+    #[cfg(unix)]
     let uds_auth: Arc<dyn ClientAuthenticator> =
         Arc::from(auth::build(&ClientAuthConfig::default())?);
 
@@ -229,6 +245,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         None => None,
     };
 
+    #[cfg(unix)]
     run_listeners(
         uds.as_ref(),
         &uds_auth,
@@ -237,6 +254,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         &shared,
     )
     .await;
+    #[cfg(not(unix))]
+    run_listeners(quic.as_ref(), metrics.as_ref(), &shared).await;
 
     // Clean up the socket file on a graceful exit.
     if let Some(path) = uds_path.as_deref() {
@@ -274,13 +293,15 @@ fn build_quic_endpoint(cfg: &QuicListenerConfig) -> Result<Endpoint, Box<dyn Err
 
 /// Runs the configured listener(s) until a shutdown signal. An absent listener parks forever
 /// (`pending`), so `select!` resolves only on a live accept loop ending or the shutdown signal.
+/// The UDS listener (and its authenticator) exists only on Unix.
 async fn run_listeners(
-    uds: Option<&UnixListener>,
-    uds_auth: &Arc<dyn ClientAuthenticator>,
+    #[cfg(unix)] uds: Option<&UnixListener>,
+    #[cfg(unix)] uds_auth: &Arc<dyn ClientAuthenticator>,
     quic: Option<&QuicListener>,
     metrics: Option<&TcpListener>,
     shared: &Arc<Shared>,
 ) {
+    #[cfg(unix)]
     let uds_loop = async {
         match uds {
             Some(listener) => {
@@ -291,6 +312,8 @@ async fn run_listeners(
             None => pending::<()>().await,
         }
     };
+    #[cfg(not(unix))]
+    let uds_loop = pending::<()>();
     let quic_loop = async {
         match quic {
             Some((endpoint, authenticator, conn_limit)) => {
@@ -382,6 +405,7 @@ fn render_metrics(shared: &Shared) -> String {
 }
 
 /// Accepts UDS connections forever, spawning a per-connection session handler for each.
+#[cfg(unix)]
 async fn uds_accept_loop(
     listener: &UnixListener,
     shared: &Arc<Shared>,
