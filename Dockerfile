@@ -1,7 +1,7 @@
 # fabricd — the egress sidecar image.
 #
 # The workspace path-depends on a sibling checkout of the box repo (../runlet-js) for the
-# `fabric-wire` contract crate, so the build CONTEXT IS THE PARENT DIRECTORY holding both
+# `runlet-wire` contract crate, so the build CONTEXT IS THE PARENT DIRECTORY holding both
 # repos (only sources are copied, never target/):
 #
 #   git clone https://github.com/hlop3z/runlet-js ../runlet-js   # once
@@ -13,7 +13,7 @@ FROM rust:1.92-alpine AS builder
 RUN apk add --no-cache musl-dev
 
 WORKDIR /src
-# The contract repo: workspace manifest + member crates (fabric-wire inherits
+# The contract repo: workspace manifest + member crates (runlet-wire inherits
 # version/lints from its own workspace root, so the whole crates/ tree comes along).
 COPY runlet-js/Cargo.toml runlet-js/Cargo.toml
 COPY runlet-js/crates runlet-js/crates

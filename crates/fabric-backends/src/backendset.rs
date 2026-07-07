@@ -20,9 +20,9 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio::runtime::Handle;
 
-use fabric_wire::{CircuitBreaker, Egress, EgressError, ErrorOwner};
+use runlet_wire::{CircuitBreaker, Egress, EgressError, ErrorOwner};
 
-use fabric_wire::{
+use runlet_wire::{
     AmqMetric, AuthMetric, BackendMetrics, DbMetric, MailMetric, MeteredEgress, MongoMetric,
     RedisMetric,
 };
@@ -551,7 +551,7 @@ mod tests {
     //! integration suites against live backends.
 
     use super::{BackendSet, parse_auth_token, parse_db_payload, parse_mongo_payload};
-    use fabric_wire::Egress;
+    use runlet_wire::Egress;
 
     /// A well-formed `db` payload yields the SQL and a re-serialized params array.
     #[test]

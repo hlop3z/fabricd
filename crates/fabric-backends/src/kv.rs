@@ -17,8 +17,8 @@ use redis::{Commands, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{EgressError, ErrorOwner, Fault, RedisMetric};
+use runlet_wire::metrics::{self as sandbox, Collector};
+use runlet_wire::{EgressError, ErrorOwner, Fault, RedisMetric};
 
 /// Fallback fault for a Redis error with no specific predicate.
 const REDIS_FALLBACK: Fault = Fault::new("REDIS_ERROR", true, ErrorOwner::Operator);
@@ -108,7 +108,7 @@ fn classify(err: &redis::RedisError) -> Fault {
 /// A connected, JS-free `redis` backend: a shared connection plus its own metrics, exposing a
 /// single string-in/string-out [`call`](RedisBackend::call).
 ///
-/// The reusable dispatch core behind the in-process [`Egress`](fabric_wire::Egress)
+/// The reusable dispatch core behind the in-process [`Egress`](runlet_wire::Egress)
 /// adapter (and the shape a sidecar hosts). Sync — no runtime handle needed. See
 /// `docs/design/resource-egress.md`.
 pub struct RedisBackend {

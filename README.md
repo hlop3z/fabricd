@@ -9,18 +9,18 @@ the I/O.
 
 **This daemon is replaceable by design.** The wire contract it implements — the `Egress`
 trait, the framed `Init`→`Call`\*→`Drain` session protocol, the QUIC transport, the error
-taxonomy — is owned by the box repo (`runlet-js`, crate `crates/fabric-wire`). Anything that
+taxonomy — is owned by the box repo (`runlet-js`, crate `crates/runlet-wire`). Anything that
 speaks that contract can stand in for `fabricd`; nothing in `runlet-js` depends on this repo.
 
 ## Layout
 
 - **`crates/fabric-backends`** — the driver bag: one JS-free `*Backend` per capability
   (`db`/`mongo`/`mail`/`redis`/`amq`/`auth`), the `BackendSet` that wires them behind the
-  `fabric_wire::Egress` port, the `*Config` types, the tenant-scoped `resources` binding
+  `runlet_wire::Egress` port, the `*Config` types, the tenant-scoped `resources` binding
   table, and `sa_token` (offline k8s ServiceAccount-token verification against the cluster
   JWKS). Featureless — the driver bag always carries every backend.
 - **`crates/fabricd`** — the daemon (bin): hosts a `BackendSet` per session behind the
-  `fabric-wire` protocol over **either transport** — a local **UDS** (the zero-config
+  `runlet-wire` protocol over **either transport** — a local **UDS** (the zero-config
   default) or a remote **QUIC** listener with a pluggable client authenticator
   (`none` / `static` / `sa-token`).
 
@@ -31,7 +31,7 @@ credentials never reach the box and never cross workspaces.
 
 ## Building — sibling checkout required
 
-The workspace path-depends on `../runlet-js/crates/fabric-wire`:
+The workspace path-depends on `../runlet-js/crates/runlet-wire`:
 
 ```sh
 git clone https://github.com/hlop3z/runlet-js ../runlet-js   # once, next to this repo

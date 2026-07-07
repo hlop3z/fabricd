@@ -640,7 +640,6 @@ dependencies = [
  "base64",
  "bytes",
  "chrono",
- "fabric-wire",
  "jsonwebtoken",
  "lettre",
  "mongodb",
@@ -648,6 +647,7 @@ dependencies = [
  "postgres_rustls",
  "redis",
  "reqwest",
+ "runlet-wire",
  "rust_decimal",
  "rustls",
  "serde",
@@ -661,25 +661,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "fabric-wire"
-version = "0.1.1"
-dependencies = [
- "quinn",
- "rustls",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "subtle",
- "tokio",
-]
-
-[[package]]
 name = "fabricd"
 version = "0.1.1"
 dependencies = [
  "fabric-backends",
- "fabric-wire",
  "quinn",
+ "runlet-wire",
  "rustls",
  "serde",
  "serde_json",
@@ -2145,6 +2132,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "runlet-wire"
+version = "0.1.1"
+dependencies = [
+ "quinn",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "subtle",
+ "tokio",
 ]
 
 [[package]]

@@ -17,16 +17,16 @@ path = "src/main.rs"
 [dependencies]
 fabric-backends = { path = "../fabric-backends" }
 # The `Egress` trait (to dispatch via `BackendSet`) + the wire protocol/framing live in
-# fabric-wire; the daemon links the drivers (via fabric-backends) so the box doesn't.
-# fabric-wire is owned by the box repo (github.com/hlop3z/runlet-js) and consumed from a
+# runlet-wire; the daemon links the drivers (via fabric-backends) so the box doesn't.
+# runlet-wire is owned by the box repo (github.com/hlop3z/runlet-js) and consumed from a
 # sibling checkout — clone runlet-js next to this repo.
-fabric-wire = { path = "../../../runlet-js/crates/fabric-wire" }
+runlet-wire = { path = "../../../runlet-js/crates/runlet-wire" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 rustls.workspace = true
 # QUIC listener for the remote box↔fabricd transport (the alternative to the local UDS). The
-# endpoint builders + pinned-cert TLS live in fabric-wire; the daemon drives the accept loop. Same
+# endpoint builders + pinned-cert TLS live in runlet-wire; the daemon drives the accept loop. Same
 # `aws-lc-rs` rustls provider — no second crypto stack. See `docs/design/network-fabric.md`.
 quinn.workspace = true
 tracing.workspace = true

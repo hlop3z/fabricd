@@ -5,9 +5,9 @@ members = ["crates/fabric-backends", "crates/fabricd"]
 # ──────────────────────────────────────────────────────────────
 # Shared package metadata (inherited via `*.workspace = true`)
 #
-# NOTE: the wire contract (`fabric-wire`) is OWNED by the box repo
+# NOTE: the wire contract (`runlet-wire`) is OWNED by the box repo
 # (github.com/hlop3z/runlet-js) and consumed here as a sibling-checkout
-# path dependency (`../runlet-js/crates/fabric-wire`). That direction is
+# path dependency (`../runlet-js/crates/runlet-wire`). That direction is
 # the point of the split: runlet is fully independent; this daemon is a
 # replaceable implementation of runlet's egress contract.
 # ──────────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ webpki-roots = "1"
 # QUIC listener for the remote box↔fabricd transport (the network alternative to the local
 # UDS). `default-features = false` + `rustls-aws-lc-rs` keeps it on the one process-wide
 # `aws-lc-rs` rustls provider (NOT the default `ring`). The endpoint builders + pinned-cert
-# TLS live in `fabric-wire` (runlet-js repo); the daemon drives the accept loop.
+# TLS live in `runlet-wire` (runlet-js repo); the daemon drives the accept loop.
 quinn = { version = "0.11", default-features = false, features = [
     "runtime-tokio",
     "rustls-aws-lc-rs",

@@ -2,7 +2,7 @@
 //!
 //! On the local UDS path, filesystem permissions gate the socket, so no token is sent or checked.
 //! On the QUIC path `fabricd` is network-reachable, so the box presents an opaque credential in
-//! [`WireInit.token`](fabric_wire::wire::WireInit::token) and the daemon validates it **before**
+//! [`WireInit.token`](runlet_wire::wire::WireInit::token) and the daemon validates it **before**
 //! resolving any logical name — a `ClientAuthenticator` is the seam.
 //!
 //! Three providers ship, selected by `quic.auth.mode`:
@@ -24,14 +24,14 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use fabric_backends::sa_token::{JwksVerifier, SaTokenVerifyConfig};
-use fabric_wire::ct_eq;
+use runlet_wire::ct_eq;
 use serde::Deserialize;
 
 /// Stable request-category code the box surfaces (as a `400`) when client auth fails.
 const UNAUTHENTICATED: &str = "UNAUTHENTICATED";
 
-/// Why a client's [`WireInit.token`](fabric_wire::wire::WireInit::token) was rejected — carried back
-/// to the box in a [`WireResponse::InitError`](fabric_wire::wire::WireResponse::InitError). The
+/// Why a client's [`WireInit.token`](runlet_wire::wire::WireInit::token) was rejected — carried back
+/// to the box in a [`WireResponse::InitError`](runlet_wire::wire::WireResponse::InitError). The
 /// message is human-safe (never echoes the token).
 #[derive(Debug)]
 pub(crate) struct AuthReject {

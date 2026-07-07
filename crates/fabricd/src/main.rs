@@ -1,6 +1,6 @@
 //! `fabricd`: the egress sidecar / broker for runlet.
 //!
-//! Hosts [`fabric_backends::BackendSet`] behind the [`fabric_wire::wire`] protocol over one of two
+//! Hosts [`fabric_backends::BackendSet`] behind the [`runlet_wire::wire`] protocol over one of two
 //! transports: a local **Unix-domain socket** (the zero-config default) and a remote **QUIC** link
 //! (a shared, replicated cluster service many boxes reach over the network). The daemon owns the
 //! operator credential table: the box sends only logical resource *names* (a `WireInit`), and
@@ -29,10 +29,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use fabric_backends::{AsyncDeps, BackendSet, TenantResourceBinding, resolve};
-use fabric_wire::Egress as _;
-use fabric_wire::breaker::{BreakerConfig, CircuitBreaker};
-use fabric_wire::quic::{ServerTls, server_endpoint};
-use fabric_wire::wire::{WireCall, WireRequest, WireResponse, read_frame, write_frame};
+use runlet_wire::Egress as _;
+use runlet_wire::breaker::{BreakerConfig, CircuitBreaker};
+use runlet_wire::quic::{ServerTls, server_endpoint};
+use runlet_wire::wire::{WireCall, WireRequest, WireResponse, read_frame, write_frame};
 use quinn::{Connection, Endpoint, Incoming};
 use rustls::crypto::aws_lc_rs;
 use serde::Deserialize;
@@ -448,7 +448,7 @@ async fn quic_accept_loop(
 
 /// Completes one QUIC handshake, then serves each inbound bidirectional stream as its own session
 /// (a box multiplexes one stream per request over the long-lived connection). Per-stream concurrency
-/// is bounded by the transport's `max_concurrent_bidi_streams` cap (set in `fabric-wire`).
+/// is bounded by the transport's `max_concurrent_bidi_streams` cap (set in `runlet-wire`).
 async fn handle_quic_connection(
     incoming: Incoming,
     shared: &Arc<Shared>,
@@ -619,7 +619,7 @@ mod tests {
     use std::sync::atomic::AtomicU64;
     use std::time::Duration;
 
-    use fabric_wire::breaker::{BreakerConfig, CircuitBreaker};
+    use runlet_wire::breaker::{BreakerConfig, CircuitBreaker};
 
     use super::{Shared, is_metrics_request, render_metrics};
 

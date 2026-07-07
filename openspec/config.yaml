@@ -10,7 +10,7 @@ context: |
   client auth (none/static/sa-token). Resolution is tenant-scoped; credentials never
   reach the box.
 
-  The wire contract (fabric-wire: Egress trait, framing, QUIC transport, error taxonomy)
+  The wire contract (runlet-wire: Egress trait, framing, QUIC transport, error taxonomy)
   is OWNED by the runlet-js repo and consumed as a sibling-checkout path dependency —
   this daemon is replaceable by anything that speaks the contract. Contract changes are
   made in runlet-js first.

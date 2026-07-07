@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use tokio::runtime::{Builder, Runtime};
 
-use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{AmqMetric, EgressError, ErrorOwner, Fault};
+use runlet_wire::metrics::{self as sandbox, Collector};
+use runlet_wire::{AmqMetric, EgressError, ErrorOwner, Fault};
 
 /// Fallback fault for a publish/protocol error.
 const AMQ_FALLBACK: Fault = Fault::new("AMQ_ERROR", true, ErrorOwner::Operator);
@@ -177,7 +177,7 @@ struct SendOutcome {
 /// Stateless beyond config — each `send`/`request` opens its own
 /// connection lazily (see module docs), so there is no setup I/O and construction is infallible.
 /// The reusable dispatch core behind the in-process
-/// [`Egress`](fabric_wire::Egress) adapter. (Named `AmqProducer`, not `*Backend`, since
+/// [`Egress`](runlet_wire::Egress) adapter. (Named `AmqProducer`, not `*Backend`, since
 /// [`AmqBackend`] is already the rabbitmq/nats selector enum.) See
 /// `docs/design/resource-egress.md`.
 #[derive(Debug)]

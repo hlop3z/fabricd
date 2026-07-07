@@ -2,7 +2,7 @@ name: CI
 
 # Deterministic gate: formatting, the strict clippy gauntlet, unit tests, and
 # supply-chain — mirroring the runlet-js repo's gate. This workspace path-depends
-# on a sibling checkout of runlet-js (../runlet-js) for the `fabric-wire`
+# on a sibling checkout of runlet-js (../runlet-js) for the `runlet-wire`
 # contract crate, so every job clones it next to the workspace first.
 on:
   pull_request:

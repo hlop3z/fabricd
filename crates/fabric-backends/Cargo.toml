@@ -1,6 +1,6 @@
 [package]
 name = "fabric-backends"
-description = "Driver-backed egress backends for runlet (db/mongo/mail/redis/amq/auth) plus the in-process BackendSet that wires them behind the fabric-wire Egress port — the code a sidecar (fabricd) hosts once drivers leave the sandbox"
+description = "Driver-backed egress backends for runlet (db/mongo/mail/redis/amq/auth) plus the in-process BackendSet that wires them behind the runlet-wire Egress port — the code a sidecar (fabricd) hosts once drivers leave the sandbox"
 readme = "../../README.md"
 version.workspace = true
 edition.workspace = true
@@ -10,7 +10,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-# Depends only on the shared wire contract (fabric-wire) + the driver crates — never on
+# Depends only on the shared wire contract (runlet-wire) + the driver crates — never on
 # runlet-core (no QuickJS here). This is the half of the old runlet-core capability modules
 # that holds the drivers; the JS wrappers (`inject_wrapper` + `js/*.js`) stay in runlet-core.
 #
@@ -21,7 +21,7 @@ categories.workspace = true
 [dependencies]
 # The wire contract is owned by the box repo (github.com/hlop3z/runlet-js) and consumed
 # from a sibling checkout — clone runlet-js next to this repo.
-fabric-wire = { path = "../../../runlet-js/crates/fabric-wire" }
+runlet-wire = { path = "../../../runlet-js/crates/runlet-wire" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

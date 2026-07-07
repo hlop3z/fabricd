@@ -22,7 +22,7 @@ CLUSTER="jsbox-satoken"
 IMG="jsbox-satoken:test"
 REG_VOL="jsbox_cargo_reg"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-# The box repo, expected as a sibling checkout (it owns the fabric-wire contract this
+# The box repo, expected as a sibling checkout (it owns the runlet-wire contract this
 # workspace path-depends on, and provides the `runlet` binary for the in-cluster boxes).
 PARENT="$(dirname "$REPO")"
 RUNLET_REPO="$PARENT/runlet-js"
@@ -45,7 +45,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-[ -d "$RUNLET_REPO/crates/fabric-wire" ] || skip "runlet-js sibling checkout not found at $RUNLET_REPO"
+[ -d "$RUNLET_REPO/crates/runlet-wire" ] || skip "runlet-js sibling checkout not found at $RUNLET_REPO"
 
 echo "== [build] fabricd + runlet (debug, musl — reuses workspace caches, two sibling repos) =="
 drun run --rm -v "$(winpath "$PARENT"):/work" -v "$REG_VOL:/usr/local/cargo/registry" -w /work/fabricd rust:1.92-alpine \

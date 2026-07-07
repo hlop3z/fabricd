@@ -1,7 +1,7 @@
 version: '3'
 
 # NOTE: this workspace path-depends on a sibling checkout of the box repo
-# (../runlet-js) for the `fabric-wire` contract crate. Clone it first:
+# (../runlet-js) for the `runlet-wire` contract crate. Clone it first:
 #   git clone https://github.com/hlop3z/runlet-js ../runlet-js
 
 tasks:

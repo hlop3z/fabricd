@@ -23,8 +23,8 @@ use reqwest::blocking::{Client, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{AuthMetric, EgressError, ErrorOwner, Fault};
+use runlet_wire::metrics::{self as sandbox, Collector};
+use runlet_wire::{AuthMetric, EgressError, ErrorOwner, Fault};
 
 /// Issuer unreachable / 5xx / timeout — transient, page ops.
 const AUTH_UNAVAILABLE: Fault = Fault::new("AUTH_UNAVAILABLE", true, ErrorOwner::Operator);
@@ -145,7 +145,7 @@ struct AuthState {
 /// An `auth` backend: the blocking client + resolved config (with request-scoped discovery
 /// memo) plus its own metrics, exposing a single [`call`](AuthBackend::call).
 ///
-/// The reusable dispatch core behind the in-process [`Egress`](fabric_wire::Egress)
+/// The reusable dispatch core behind the in-process [`Egress`](runlet_wire::Egress)
 /// adapter. Sync. See `docs/design/resource-egress.md`.
 pub struct AuthBackend {
     /// Shared auth runtime (client + config + request-scoped discovery memo).

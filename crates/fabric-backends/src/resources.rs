@@ -1,7 +1,7 @@
 //! The operator resource table + name→config resolution, owned by `fabricd`.
 //!
 //! After the trust flip the box never holds credentials: it sends logical resource *names* (a
-//! [`WireInit`](fabric_wire::WireInit)), and the daemon resolves them against this table — the
+//! [`WireInit`](runlet_wire::WireInit)), and the daemon resolves them against this table — the
 //! endpoint/credentials live only here, operator-side. A name that isn't provisioned, or is the
 //! wrong kind, is a [`ResolveError`] the daemon reports back so the box returns a `400`.
 
@@ -10,7 +10,7 @@ use std::hash::BuildHasher;
 
 use serde::Deserialize;
 
-use fabric_wire::WireInit;
+use runlet_wire::WireInit;
 
 use crate::amq::AmqConfig;
 use crate::auth::AuthConfig;
@@ -292,7 +292,7 @@ mod tests {
     //! names, and kind mismatches.
 
     use super::{ResolveError, ResourceBinding, TenantResourceBinding, resolve};
-    use fabric_wire::WireInit;
+    use runlet_wire::WireInit;
     use std::collections::HashMap;
 
     /// One global `db` (`orders-db`) and one global `redis` (`cache`) binding, parsed from JSON

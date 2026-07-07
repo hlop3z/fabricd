@@ -3,7 +3,7 @@
 //!
 //! The box mounts a projected `ServiceAccount` token (a short-lived, kubelet-rotated OIDC JWT,
 //! audience = `fabricd`) and presents it in
-//! [`WireInit.token`](fabric_wire::wire::WireInit::token). `fabricd` verifies it **offline** against
+//! [`WireInit.token`](runlet_wire::wire::WireInit::token). `fabricd` verifies it **offline** against
 //! the cluster JWKS — an RSA signature + `aud`/`iss`/`exp` claim check — with **no per-request
 //! API-server round-trip**, giving per-pod identity, automatic rotation, and revocation (delete the
 //! `ServiceAccount`) without a cert manager or shared secret.
@@ -32,7 +32,7 @@ use serde_json::Value;
 use tokio::time::sleep;
 use tracing::{info, warn};
 
-use fabric_wire::{EgressError, ErrorOwner, Fault};
+use runlet_wire::{EgressError, ErrorOwner, Fault};
 
 /// Building the JWKS HTTP client failed (bad CA bundle, TLS setup) — retryable, operator-owned.
 const SA_TOKEN_UNAVAILABLE: Fault = Fault::new("SA_TOKEN_UNAVAILABLE", true, ErrorOwner::Operator);

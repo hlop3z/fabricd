@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The **egress sidecar / broker** for [runlet](https://github.com/hlop3z/runlet-js): it holds
 the operator credential table (`resources` config) and **all** the vendor drivers, and hosts a
-`BackendSet` per session behind the `fabric-wire` protocol over a local **UDS** or a remote
+`BackendSet` per session behind the `runlet-wire` protocol over a local **UDS** or a remote
 **QUIC** listener. The box (runlet) forwards logical resource names; this daemon resolves them
 — tenant-scoped, a cross-tenant name resolves as `NotFound` — so credentials never reach the
 box and never cross workspaces. On QUIC it validates the box's `WireInit.token` via a
@@ -17,8 +17,8 @@ key cache, fail-closed until the first fetch).
 
 **This daemon is replaceable by design.** The wire contract (the `Egress` trait, the framed
 `Init`→`Call`\*→`Drain` session, the QUIC transport, the error taxonomy, `ct_eq`) is OWNED by
-the box repo — crate `fabric-wire` in `runlet-js` — and consumed here as a **sibling-checkout
-path dependency** (`../runlet-js/crates/fabric-wire`). Clone runlet-js next to this repo
+the box repo — crate `runlet-wire` in `runlet-js` — and consumed here as a **sibling-checkout
+path dependency** (`../runlet-js/crates/runlet-wire`). Clone runlet-js next to this repo
 before building. Never fork or vendor the contract; a contract change is made in runlet-js
 and consumed here.
 
@@ -26,7 +26,7 @@ and consumed here.
 
 - **`fabric-backends`** (`crates/fabric-backends/`) — the driver bag: per-capability JS-free
   `*Backend`s (`db`/`mongo`/`mail`/`redis`/`amq`/`auth`; string-in/string-out dispatch +
-  metrics + `into_resource_error`), `BackendSet` (wires them behind `fabric_wire::Egress`),
+  metrics + `into_resource_error`), `BackendSet` (wires them behind `runlet_wire::Egress`),
   the `*Config` types, the tenant-scoped `TenantResourceBinding` table + `resolve`
   (`resources.rs`), and `sa_token`. Deliberately **featureless** (always carries every
   backend) and never depends on runlet-core (no QuickJS here).
@@ -70,7 +70,7 @@ done; a hard clippy error can short-circuit later lint passes, so re-run until t
   existing provider. Pulling `ring` (or default `native-tls`/OpenSSL) links a second crypto
   stack and bloats the binary.
 - **Contract changes happen in runlet-js.** If a change here needs a new wire message/field,
-  make the `fabric-wire` change in the sibling repo first (additive/compatible), then consume
+  make the `runlet-wire` change in the sibling repo first (additive/compatible), then consume
   it here. CI pins the contract by cloning runlet-js `main`.
 
 ## Conventions

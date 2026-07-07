@@ -21,8 +21,8 @@ use tokio::time::timeout;
 use tokio_postgres::types::{FromSql, IsNull, ToSql, Type};
 use tokio_postgres::{Client, Connection, NoTls};
 
-use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{CircuitBreaker, DbMetric, EgressError, ErrorOwner, Fault};
+use runlet_wire::metrics::{self as sandbox, Collector};
+use runlet_wire::{CircuitBreaker, DbMetric, EgressError, ErrorOwner, Fault};
 
 /// Fallback fault for any db error without a recognized driver `SqlState`.
 const DB_FALLBACK: Fault = Fault::new("DB_ERROR", true, ErrorOwner::Operator);
@@ -208,7 +208,7 @@ pub struct DbDeps<'a> {
 ///
 /// This is the reusable dispatch core, holding no `QuickJS` state — shared by the in-process
 /// `__db` capability (via [`inject_db`]) and the in-process
-/// [`Egress`](fabric_wire::Egress) adapter (`crate::backendset`), and the same shape a
+/// [`Egress`](runlet_wire::Egress) adapter (`crate::backendset`), and the same shape a
 /// sidecar will host when the driver moves out of the sandbox process. See
 /// `docs/design/resource-egress.md`.
 pub struct DbBackend {
@@ -729,7 +729,7 @@ mod tests {
     //! preserves the classified fault (code / retryable / owner) and the `db` source tag.
 
     use super::{DB_CONNECTION_FAULT, DbError};
-    use fabric_wire::ErrorOwner;
+    use runlet_wire::ErrorOwner;
     use serde_json::json;
 
     /// A fallback (`DB_ERROR`) maps across with its retry hint and operator owner, source `db`.

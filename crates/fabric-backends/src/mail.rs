@@ -16,8 +16,8 @@ use lettre::transport::smtp::authentication::Credentials;
 use lettre::{SmtpTransport, Transport};
 use serde::{Deserialize, Serialize};
 
-use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{EgressError, ErrorOwner, Fault, MailMetric};
+use runlet_wire::metrics::{self as sandbox, Collector};
+use runlet_wire::{EgressError, ErrorOwner, Fault, MailMetric};
 
 /// Fallback fault for any mail error that isn't a classified SMTP reply.
 const MAIL_FALLBACK: Fault = Fault::new("MAIL_ERROR", true, ErrorOwner::Operator);
@@ -200,7 +200,7 @@ struct SendCtx<'a> {
 /// A `mail` backend: the pre-built SMTP transport plus send policy and its own metrics,
 /// exposing a single [`call`](MailBackend::call).
 ///
-/// The reusable dispatch core behind the in-process [`Egress`](fabric_wire::Egress)
+/// The reusable dispatch core behind the in-process [`Egress`](runlet_wire::Egress)
 /// adapter. Sync. See `docs/design/resource-egress.md`.
 pub struct MailBackend {
     /// Pre-built SMTP transport (connects per send, internally).

@@ -29,8 +29,8 @@ use serde_json::Value;
 use tokio::runtime::Handle;
 use tokio::time::timeout;
 
-use fabric_wire::metrics::{self as sandbox, Collector};
-use fabric_wire::{EgressError, ErrorOwner, Fault, MongoMetric};
+use runlet_wire::metrics::{self as sandbox, Collector};
+use runlet_wire::{EgressError, ErrorOwner, Fault, MongoMetric};
 
 /// Fallback fault for any mongo error without a more specific classification.
 const MONGO_FALLBACK: Fault = Fault::new("MONGO_ERROR", true, ErrorOwner::Operator);
@@ -194,7 +194,7 @@ pub struct MongoDeps<'a> {
 /// [`call`](MongoBackend::call).
 ///
 /// The reusable async dispatch core behind the in-process
-/// [`Egress`](fabric_wire::Egress) adapter (and the shape a sidecar hosts). See
+/// [`Egress`](runlet_wire::Egress) adapter (and the shape a sidecar hosts). See
 /// `docs/design/resource-egress.md`.
 pub struct MongoBackend {
     /// Runtime handle for `block_on` (the driver is async; the engine thread is blocking).
