@@ -1,0 +1,42 @@
+{
+  "__comment": "Example `fabricd` resources table (see docs/deployment.md §5). Copy to fabricd.json (gitignored — it holds REAL credentials, keep it secret) and fill in your endpoints. Each key is a logical name a request may reference via config.io, e.g. {\"io\": {\"db\": [\"local-db\"]}}; the box only ever sends the name — fabricd resolves the credentials here.",
+  "socket": "/tmp/fabricd.sock",
+  "resources": {
+    "local-db": {
+      "kind": "db",
+      "host": "host.docker.internal",
+      "port": 5432,
+      "user": "CHANGE_ME",
+      "password": "CHANGE_ME",
+      "database": "testdb"
+    },
+    "local-mail": {
+      "kind": "mail",
+      "host": "smtp.example.com",
+      "port": 587,
+      "from": "no-reply@example.com",
+      "user": "CHANGE_ME",
+      "password": "CHANGE_ME",
+      "tls": "starttls"
+    },
+    "local-redis": {
+      "kind": "redis",
+      "url": "redis://host.docker.internal:6379/0",
+      "timeout_ms": 5000
+    },
+    "local-amq": {
+      "kind": "amq",
+      "host": "host.docker.internal",
+      "port": 5672,
+      "username": "CHANGE_ME",
+      "password": "CHANGE_ME",
+      "vhost": "/",
+      "exchange": "",
+      "max_batch": 100
+    },
+    "local-auth": {
+      "kind": "auth",
+      "issuer": "http://host.docker.internal:8081/realms/master"
+    }
+  }
+}

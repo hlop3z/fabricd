@@ -1,0 +1,320 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/fabric-wire",
+    "crates/fabric-backends",
+    "crates/fabricd",
+    "crates/runlet-core",
+    "crates/runlet",
+    "crates/runlet-bench",
+]
+
+# ──────────────────────────────────────────────────────────────
+# Shared package metadata (inherited via `*.workspace = true`)
+# ──────────────────────────────────────────────────────────────
+[workspace.package]
+version = "0.1.1"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+repository = "https://github.com/user/runlet"
+keywords = ["quickjs", "javascript", "scripting", "rust"]
+categories = ["development-tools"]
+
+# ──────────────────────────────────────────────────────────────
+# Shared dependencies — each crate opts in with `dep.workspace = true`
+# ──────────────────────────────────────────────────────────────
+[workspace.dependencies]
+# -- bin (HTTP front) --
+axum = { version = "0.8", features = ["json"] }
+mimalloc = { version = "0.1", default-features = false }
+# `json` for structured stdout logs, `env-filter` for RUST_LOG-style level control.
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+# -- observability (traces): OpenTelemetry, OTLP over gRPC to a local collector. `grpc-tonic`
+# WITHOUT any TLS feature ⇒ plaintext gRPC to an in-pod/localhost collector, so no second crypto
+# stack (`ring`) is linked (the collector, not the box, does TLS to the backend). Traces PUSH;
+# metrics stay Prometheus PULL. Versions are a compatible set: opentelemetry* 0.28 +
+# tracing-opentelemetry 0.29 (0.28 brought the thread-based BatchSpanProcessor, SdkTracerProvider,
+# and Resource::builder).
+opentelemetry = "0.28"
+opentelemetry_sdk = "0.28"
+opentelemetry-otlp = { version = "0.28", default-features = false, features = [
+    "grpc-tonic",
+    "trace",
+] }
+tracing-opentelemetry = "0.29"
+
+# -- shared --
+serde = { version = "1", features = ["derive"] }
+# Vetted, single-purpose constant-time equality primitive (`ConstantTimeEq`), already present
+# transitively in the tree. Adopted (design D4) to back the one shared `ct_eq` used by the
+# edge service-credential check (box) and the `fabricd` static-token check — replacing two
+# duplicated hand-rolled copies.
+subtle = { version = "2", default-features = false }
+# `raw_value` — the engine's `emit` effects + the `{data,error}` envelope use `RawValue`.
+# Declared directly so a `--no-default-features` core build (no drivers to pull it in) has it.
+serde_json = { version = "1", features = ["raw_value"] }
+uuid = { version = "1", features = ["v4", "v7"] }
+tokio = { version = "1", features = [
+    "macros",
+    "rt-multi-thread",
+    "net",
+    "signal",
+    "sync",
+    "time",
+] }
+tracing = "0.1"
+
+# -- core (engine) --
+crossbeam-queue = "0.3"
+# Bounded, concurrent, TinyLFU-evicting cache backing the always-on compiled-QuickJS-bytecode
+# cache — keeps the bytecode set memory-bounded across an effectively unbounded tenant/script
+# space. `sync` only (the engine runs on a blocking thread; no async cache needed).
+moka = { version = "0.12", default-features = false, features = ["sync"] }
+rquickjs = { version = "0.12", features = [
+    "classes",
+    "properties",
+    "rust-alloc",
+    "parallel",
+    "loader",
+] }
+base64 = "0.22"
+bytes = "1"
+# `clock` (⊇ `std` ⊇ `alloc`) — `$sys`/`s3` need RFC-3339 formatting + `Utc::now`. Declared
+# directly so a `--no-default-features` core build (no driver crates) still has them, rather
+# than relying on a driver to enable them transitively.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# S3 SigV4 presigning — pure crypto, no network. Reuses crates already in the
+# tree (sha2/hmac/percent-encoding pulled transitively); `hex` is a tiny addition.
+hex = "0.4"
+hmac = "0.13"
+sha2 = "0.11"
+percent-encoding = "2"
+# Async Postgres driver (Tier 2 resilience: per-query deadline + active cancellation
+# via connection teardown — see docs/design/resilience.md). The sync `postgres` wrapper
+# can't time out a blocking query from outside; `tokio-postgres` futures can.
+tokio-postgres = { version = "0.7", features = [
+    "with-serde_json-1",
+    "with-chrono-0_4",
+    "with-uuid-1",
+] }
+# Pinned to 0.1.x: 0.1.5 bumps the MSRV to Rust 1.93.1 (we target 1.92). Revisit with a
+# toolchain bump.
+postgres_rustls = "0.1"
+# Document database (Tier 2 resilience: per-op client-side deadline like db). Async driver;
+# `default-features = false` drops the `dns-resolver` (mongodb+srv) feature we don't use.
+# `rustls-tls-aws-lc` (NOT the default `rustls-tls`, which pulls `ring`) routes mongodb's
+# rustls onto the process-wide `aws-lc-rs` provider — one crypto stack, no second one.
+# `compat-3-0-0` is mongodb's required major-version acknowledgement feature.
+mongodb = { version = "3", default-features = false, features = [
+    "compat-3-0-0",
+    "rustls-tls-aws-lc",
+] }
+rustls = "0.23"
+tokio-rustls = "0.26"
+webpki-roots = "1"
+# QUIC transport for the box↔fabricd remote egress link (the network alternative to the local
+# UDS). `default-features = false` + `rustls-aws-lc-rs` keeps it on the one process-wide
+# `aws-lc-rs` rustls provider (NOT the default `ring`), reusing the existing crypto stack. See
+# `docs/design/network-fabric.md` (QUIC remote transport).
+quinn = { version = "0.11", default-features = false, features = [
+    "runtime-tokio",
+    "rustls-aws-lc-rs",
+    "log",
+] }
+# Self-signed cert generation for the QUIC transport tests only (a dev-dependency). `aws_lc_rs`
+# backend (not `ring`) to avoid pulling a second crypto stack even into tests.
+rcgen = { version = "0.13", default-features = false, features = ["aws_lc_rs", "pem"] }
+reqwest = { version = "0.13", default-features = false, features = [
+    "json",
+    "blocking",
+    "rustls",
+] }
+# Offline JWT/JWKS verification for the `fabricd` QUIC `sa-token` client authenticator (k8s
+# projected ServiceAccount tokens). `aws_lc_rs` backend (v10) reuses the one process-wide
+# `aws-lc-rs` provider — no `ring`, no second crypto stack. `use_pem` enables
+# `EncodingKey::from_rsa_pem` for the hermetic unit tests; `DecodingKey::from_jwk` builds keys
+# straight from the cluster JWKS (no hand-parsing of RSA modulus/exponent).
+jsonwebtoken = { version = "10", default-features = false, features = [
+    "use_pem",
+    "aws_lc_rs",
+] }
+# TLS (`amqps://`) reuses the existing `aws-lc-rs` rustls provider (tokio-rustls), not a
+# second crypto stack.
+amqprs = { version = "2", features = ["tls"] }
+# Subject-based messaging backend for the `amq` capability (publish + request-reply). See
+# `docs-sys/rfc.md` §3.5. `default-features = false` drops `ring` (the default crypto
+# provider) for `aws-lc-rs` — reusing the one process-wide provider, no second crypto stack —
+# and sheds the unused jetstream/kv/object-store/service/websockets subsystems. We use only
+# core connect + publish + request-reply (+ optional TLS), so `crypto`/`nuid`/`server_2_10`
+# are the needed defaults.
+async-nats = { version = "0.49", default-features = false, features = [
+    "aws-lc-rs",
+    "crypto",
+    "nuid",
+    "server_2_10",
+] }
+# TLS (`rediss://`) via rustls + webpki bundled roots (managed services use public CAs).
+# `rustls` here defaults to `aws-lc-rs`, the same provider db/reqwest/lettre already use.
+redis = { version = "1", features = ["tls-rustls", "tls-rustls-webpki-roots"] }
+rust_decimal = { version = "1", features = ["db-tokio-postgres"] }
+lettre = { version = "0.11", default-features = false, features = [
+    "smtp-transport",
+    "builder",
+    "hostname",
+    "pool",
+    "rustls-no-provider",
+    "aws-lc-rs",
+    "webpki-roots",
+] }
+
+# ──────────────────────────────────────────────────────────────
+# Rustc lints — deny everything allowed-by-default that matters
+# ──────────────────────────────────────────────────────────────
+[workspace.lints.rust]
+# `deny` (not `forbid`) so the single audited `Module::load` bytecode-deserialization backing the
+# always-on bytecode cache can carry an `#[expect(unsafe_code, reason = …)]` (the lone unsafe in
+# the workspace; see runlet-core `engine.rs::load_bytecode`). Every other unsafe still
+# hard-errors. To restore `forbid` everywhere else, move that one call into a dedicated
+# non-inheriting crate (as `runlet-bench` already opts out of these lints).
+unsafe_code = "deny"
+missing_docs = "deny"
+unused = { level = "deny", priority = -1 }
+nonstandard_style = { level = "deny", priority = -1 }
+rust_2024_compatibility = { level = "deny", priority = -1 }
+let_underscore_drop = "deny"
+elided_lifetimes_in_paths = "deny"
+explicit_outlives_requirements = "deny"
+macro_use_extern_crate = "deny"
+meta_variable_misuse = "deny"
+missing_abi = "deny"
+missing_copy_implementations = "deny"
+missing_debug_implementations = "deny"
+non_ascii_idents = "deny"
+single_use_lifetimes = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unreachable_pub = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+unused_crate_dependencies = "deny"
+unused_import_braces = "deny"
+unused_lifetimes = "deny"
+unused_qualifications = "deny"
+unused_results = "deny"
+variant_size_differences = "warn"
+
+# ──────────────────────────────────────────────────────────────
+# Clippy lint groups
+# ──────────────────────────────────────────────────────────────
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+
+# Allow nursery lint that conflicts with rustc unreachable_pub
+redundant_pub_crate = "allow"
+# Transitive deps may pull multiple versions of the same crate
+multiple_crate_versions = "allow"
+
+# ── Cherry-picked restriction lints (never enable the whole group) ──
+# Panics / unwraps / unfinished code
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unwrap_in_result = "deny"
+
+# Printing / IO
+print_stdout = "deny"
+print_stderr = "deny"
+verbose_file_reads = "deny"
+
+# Indexing / arithmetic / casts
+indexing_slicing = "deny"
+arithmetic_side_effects = "deny"
+as_conversions = "deny"
+float_cmp_const = "deny"
+fn_to_numeric_cast_any = "deny"
+lossy_float_literal = "deny"
+
+# Strings / allocations
+str_to_string = "deny"
+string_add = "deny"
+string_slice = "deny"
+format_push_string = "deny"
+
+# Unsafe / soundness
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"
+
+# Shadowing
+shadow_reuse = "deny"
+shadow_same = "deny"
+shadow_unrelated = "deny"
+
+# Lint suppression — "no cheating"
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+
+# Code quality / style
+clone_on_ref_ptr = "deny"
+create_dir = "deny"
+deref_by_slicing = "deny"
+empty_drop = "deny"
+empty_structs_with_brackets = "deny"
+error_impl_error = "deny"
+exit = "deny"
+filetype_is_file = "deny"
+get_unwrap = "deny"
+if_then_some_else_none = "deny"
+impl_trait_in_params = "deny"
+infinite_loop = "deny"
+large_include_file = "deny"
+let_underscore_must_use = "deny"
+mem_forget = "deny"
+min_ident_chars = "deny"
+missing_assert_message = "deny"
+missing_docs_in_private_items = "deny"
+mixed_read_write_in_expression = "deny"
+multiple_inherent_impl = "deny"
+mutex_atomic = "deny"
+needless_raw_strings = "deny"
+partial_pub_fields = "deny"
+rc_buffer = "deny"
+rc_mutex = "deny"
+redundant_type_annotations = "deny"
+rest_pat_in_fully_bound_structs = "deny"
+same_name_method = "deny"
+self_named_module_files = "deny"
+semicolon_outside_block = "deny"
+tests_outside_test_module = "deny"
+try_err = "deny"
+unnecessary_safety_comment = "deny"
+unnecessary_safety_doc = "deny"
+unnecessary_self_imports = "deny"
+unneeded_field_pattern = "deny"
+unseparated_literal_suffix = "deny"
+wildcard_enum_match_arm = "deny"
+missing_trait_methods = "deny"
+iter_over_hash_type = "deny"
+absolute_paths = "deny"
+ref_patterns = "deny"
+renamed_function_params = "deny"
+
+# ──────────────────────────────────────────────────────────────
+# Profiles (apply at the workspace root only)
+# ──────────────────────────────────────────────────────────────
+[profile.dev]
+debug = true
+overflow-checks = true
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
+opt-level = 3
+overflow-checks = true

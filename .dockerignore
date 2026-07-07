@@ -1,0 +1,10 @@
+target/
+.git/
+.claude/
+*.md
+!README.md
+docker-compose.yml
+tests/
+scripts/
+PLAN.md
+config.json

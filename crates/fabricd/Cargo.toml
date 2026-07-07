@@ -1,0 +1,34 @@
+[package]
+name = "fabricd"
+description = "Local egress sidecar for runlet — hosts fabric-backends' BackendSet behind a Unix-domain-socket wire protocol, so the sandbox box reaches db/mongo/mail/redis/amq/auth without linking the drivers"
+readme = "../../README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "fabricd"
+path = "src/main.rs"
+
+[dependencies]
+fabric-backends = { path = "../fabric-backends" }
+# The `Egress` trait (to dispatch via `BackendSet`) + the wire protocol/framing live in
+# fabric-wire; the daemon links the drivers (via fabric-backends) so the box doesn't.
+fabric-wire = { path = "../fabric-wire" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+rustls.workspace = true
+# QUIC listener for the remote box↔fabricd transport (the alternative to the local UDS). The
+# endpoint builders + pinned-cert TLS live in fabric-wire; the daemon drives the accept loop. Same
+# `aws-lc-rs` rustls provider — no second crypto stack. See `docs/design/network-fabric.md`.
+quinn.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

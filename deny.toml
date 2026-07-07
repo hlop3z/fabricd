@@ -1,0 +1,30 @@
+# cargo-deny config (task supply-chain). Without this, cargo-deny's default rejects
+# every license (including the project's own MIT) and every advisory.
+
+[licenses]
+# Permissive set actually used across the dependency tree (verified via `cargo deny
+# list`). Multi-licensed crates (e.g. r-efi = MIT OR Apache OR LGPL) resolve to a
+# permissive option here, so no copyleft is ever taken.
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "0BSD",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "ISC",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+
+[bans]
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

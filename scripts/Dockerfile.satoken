@@ -1,0 +1,12 @@
+# Test-only image for the KIND sa-token end-to-end (smoke_satoken.sh). Not a release artifact.
+#
+# It reuses the debug `fabricd` + `runlet` binaries already built in the workspace cache (musl, via
+# `rust:1.92-alpine`, so they run on a plain Alpine base) instead of recompiling — the smoke script
+# builds them first, then copies both binaries next to this Dockerfile into a throwaway build
+# context (the repo `.dockerignore` excludes `target/`, so we cannot COPY from there directly).
+# `curl` is for the in-pod /execute assertions; `libgcc` covers unwinding for the debug
+# (panic=unwind) binaries.
+FROM alpine:3
+RUN apk add --no-cache curl libgcc
+COPY fabricd /usr/local/bin/fabricd
+COPY runlet /usr/local/bin/runlet
