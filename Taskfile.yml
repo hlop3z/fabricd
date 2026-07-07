@@ -42,15 +42,17 @@ tasks:
       - task: clippy
       - task: test
 
+  # fmt is scoped to this repo's packages — unscoped `cargo fmt` would also
+  # rewrite the sibling runlet-js sources through the path dep.
   fmt:
     desc: Format code
     cmds:
-      - cargo fmt
+      - cargo fmt -p fabricd -p fabric-backends
 
   fmt-check:
     desc: Check formatting without modifying files
     cmds:
-      - cargo fmt --check
+      - cargo fmt -p fabricd -p fabric-backends --check
 
   clippy:
     desc: Run clippy with strict lints
