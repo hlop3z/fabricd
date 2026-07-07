@@ -17,9 +17,11 @@ categories.workspace = true
 # Deliberately *featureless*: this crate is the driver bag, so it always carries every backend.
 # The capability cfg matrix that matters lives in `runlet-core` (which links no drivers and is
 # swept with `--no-default-features`); a deterministic-core build never depends on this crate.
-# See docs/design/resource-egress.md.
+# See the runlet-js repo's docs/design/resource-egress.md.
 [dependencies]
-fabric-wire = { path = "../fabric-wire" }
+# The wire contract is owned by the box repo (github.com/hlop3z/runlet-js) and consumed
+# from a sibling checkout — clone runlet-js next to this repo.
+fabric-wire = { path = "../../../runlet-js/crates/fabric-wire" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

@@ -307,3 +307,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Personal/session-local root files (kept locally, untracked)
 claude.sh
 next_session.md
+
+# The real credential table (copy of fabricd.example.json) — never commit
+fabricd.json

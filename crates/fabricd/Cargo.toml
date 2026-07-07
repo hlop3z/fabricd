@@ -18,7 +18,9 @@ path = "src/main.rs"
 fabric-backends = { path = "../fabric-backends" }
 # The `Egress` trait (to dispatch via `BackendSet`) + the wire protocol/framing live in
 # fabric-wire; the daemon links the drivers (via fabric-backends) so the box doesn't.
-fabric-wire = { path = "../fabric-wire" }
+# fabric-wire is owned by the box repo (github.com/hlop3z/runlet-js) and consumed from a
+# sibling checkout — clone runlet-js next to this repo.
+fabric-wire = { path = "../../../runlet-js/crates/fabric-wire" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

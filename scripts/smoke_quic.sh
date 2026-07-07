@@ -12,12 +12,15 @@
 # changes (that is the whole point of the transport).
 #
 # Run inside rust:1.92-alpine on a docker network where Postgres is reachable as `postgres`
-# (e.g. `docker compose up -d postgres`, then run this on `jsbox_default`).
+# (e.g. the runlet-js repo's `docker compose up -d postgres`, then run this on that network),
+# with the PARENT dir (holding this repo AND a runlet-js sibling checkout) mounted at /work
+# and the workdir /work/fabricd.
 set -e
 apk add --no-cache musl-dev curl openssl >/dev/null 2>&1
 
-echo "== building fabricd + runlet (debug) =="
-cargo build -p fabricd -p runlet --quiet
+echo "== building fabricd + runlet (debug, two sibling workspaces) =="
+cargo build -p fabricd --quiet
+cargo build --manifest-path /work/runlet-js/Cargo.toml -p runlet --quiet
 
 mkdir -p /tmp/smoke/good /tmp/smoke/wrong /tmp/smoke/none
 
@@ -66,12 +69,12 @@ box_config 3002 ""                                    > /tmp/smoke/none/config.j
 REQ='{"script":"function handler(ctx){ var r = db.query(\"SELECT $1::int AS n\", [41]); return json({ n: r.rows[0].n }); }","config":{"io":{"db":["orders-db"]}}}'
 
 echo "== starting fabricd (quic) =="
-FABRICD_CONFIG=/tmp/smoke/fabricd.json /work/target/debug/fabricd >/tmp/smoke/fabricd.log 2>&1 &
+FABRICD_CONFIG=/tmp/smoke/fabricd.json /work/fabricd/target/debug/fabricd >/tmp/smoke/fabricd.log 2>&1 &
 FABRICD_PID=$!
 sleep 1
 
 start_box() { # dir port
-  ( cd "$1" && /work/target/debug/runlet >"$1/runlet.log" 2>&1 ) &
+  ( cd "$1" && /work/runlet-js/target/debug/runlet >"$1/runlet.log" 2>&1 ) &
   echo $!
   for _ in $(seq 1 30); do
     if curl -sf "http://127.0.0.1:$2/health" >/dev/null 2>&1; then return 0; fi

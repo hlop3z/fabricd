@@ -4,12 +4,15 @@
 #   [1] a db.query routed box -> UDS -> fabricd -> Postgres, with metrics.
 #   [2] no in-process fallback: with fabricd down, a driver request fails 503 EGRESS_UNAVAILABLE.
 #   [3] an unknown resource name is rejected 400 RESOURCE_NOT_FOUND (resolved daemon-side).
-# Run inside rust:1.92-alpine on a docker network where Postgres is reachable as `postgres`.
+# Run inside rust:1.92-alpine on a docker network where Postgres is reachable as `postgres`,
+# with the PARENT dir (holding this repo AND a runlet-js sibling checkout) mounted at /work
+# and the workdir /work/fabricd.
 set -e
 apk add --no-cache musl-dev curl >/dev/null 2>&1
 
-echo "== building fabricd + runlet (debug) =="
-cargo build -p fabricd -p runlet --quiet
+echo "== building fabricd + runlet (debug, two sibling workspaces) =="
+cargo build -p fabricd --quiet
+cargo build --manifest-path /work/runlet-js/Cargo.toml -p runlet --quiet
 
 mkdir -p /tmp/smoke
 # Box config: a fabricd socket, NO resources (the box holds no credentials).
@@ -35,12 +38,12 @@ REQ='{"script":"function handler(ctx){ var r = db.query(\"SELECT $1::int AS n\",
 REQ_BAD='{"script":"function handler(ctx){ return json({ ok: true }); }","config":{"io":{"db":["nope"]}}}'
 
 echo "== starting fabricd =="
-FABRICD_CONFIG=/tmp/smoke/fabricd.json FABRICD_SOCKET=/tmp/fabricd.sock /work/target/debug/fabricd >/tmp/smoke/fabricd.log 2>&1 &
+FABRICD_CONFIG=/tmp/smoke/fabricd.json FABRICD_SOCKET=/tmp/fabricd.sock /work/fabricd/target/debug/fabricd >/tmp/smoke/fabricd.log 2>&1 &
 FABRICD_PID=$!
 sleep 1
 
 echo "== starting runlet =="
-( cd /tmp/smoke && /work/target/debug/runlet >/tmp/smoke/runlet.log 2>&1 ) &
+( cd /tmp/smoke && /work/runlet-js/target/debug/runlet >/tmp/smoke/runlet.log 2>&1 ) &
 RUNLET_PID=$!
 
 ok=0

@@ -1,11 +1,15 @@
 #!/bin/sh
 # Live-smoke for Step 4b: box (runlet) -> UDS -> fabricd -> Postgres, plus the in-process fallback.
-# Run inside rust:1.92-alpine on the `jsbox_default` docker network (Postgres reachable as `postgres`).
+# (Historical: the in-process fallback was removed by Step 5 — see smoke_5.sh.)
+# Run inside rust:1.92-alpine on a docker network where Postgres is reachable as `postgres`,
+# with the PARENT dir (holding this repo AND a runlet-js sibling checkout) mounted at /work
+# and the workdir /work/fabricd.
 set -e
 apk add --no-cache musl-dev curl >/dev/null 2>&1
 
-echo "== building fabricd + runlet (debug) =="
-cargo build -p fabricd -p runlet --quiet
+echo "== building fabricd + runlet (debug, two sibling workspaces) =="
+cargo build -p fabricd --quiet
+cargo build --manifest-path /work/runlet-js/Cargo.toml -p runlet --quiet
 
 mkdir -p /tmp/smoke
 cat > /tmp/smoke/config.json <<'JSON'
@@ -23,12 +27,12 @@ JSON
 REQ='{"script":"function handler(ctx){ var r = db.query(\"SELECT $1::int AS n\", [41]); return json({ n: r.rows[0].n }); }","config":{"io":{"db":["orders-db"]}}}'
 
 echo "== starting fabricd =="
-FABRICD_SOCKET=/tmp/fabricd.sock /work/target/debug/fabricd >/tmp/smoke/fabricd.log 2>&1 &
+FABRICD_SOCKET=/tmp/fabricd.sock /work/fabricd/target/debug/fabricd >/tmp/smoke/fabricd.log 2>&1 &
 FABRICD_PID=$!
 sleep 1
 
 echo "== starting runlet =="
-( cd /tmp/smoke && /work/target/debug/runlet >/tmp/smoke/runlet.log 2>&1 ) &
+( cd /tmp/smoke && /work/runlet-js/target/debug/runlet >/tmp/smoke/runlet.log 2>&1 ) &
 RUNLET_PID=$!
 
 ok=0

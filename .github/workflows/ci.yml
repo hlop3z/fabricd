@@ -1,0 +1,92 @@
+name: CI
+
+# Deterministic gate: formatting, the strict clippy gauntlet, unit tests, and
+# supply-chain — mirroring the runlet-js repo's gate. This workspace path-depends
+# on a sibling checkout of runlet-js (../runlet-js) for the `fabric-wire`
+# contract crate, so every job clones it next to the workspace first.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gate:
+    name: fmt + clippy + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The wire contract lives in the box repo; check it out as the sibling the
+      # path dependency expects. Pinning to a runlet-js ref = pinning the contract.
+      - name: Checkout runlet-js (contract sibling)
+        run: git clone --depth 1 https://github.com/${{ github.repository_owner }}/runlet-js "$GITHUB_WORKSPACE/../runlet-js"
+
+      # Pin to the same toolchain the runlet-js repo builds with. Keep in lockstep.
+      - name: Install Rust 1.92
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.92"
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      # Mirror the local gate exactly (`task clippy` == plain `cargo clippy`,
+      # NOT --all-targets: the gate deliberately does not lint #[cfg(test)] code).
+      - name: Clippy (gate)
+        run: cargo clippy --workspace
+
+      - name: Unit tests
+        run: cargo test --workspace
+
+  supply-chain:
+    name: audit + deny + vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout runlet-js (contract sibling)
+        run: git clone --depth 1 https://github.com/${{ github.repository_owner }}/runlet-js "$GITHUB_WORKSPACE/../runlet-js"
+
+      - name: Install Rust 1.92
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.92"
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Prebuilt binaries — far faster than `cargo install`.
+      - name: Install supply-chain tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit,cargo-deny
+
+      # cargo-vet is pinned and built from crates.io (cached across runs): the GitHub
+      # releases (what install-action ships) stop at 0.10.0, which cannot parse the
+      # `trusted-publisher` entries that 0.10.2 writes into imports.lock — and that
+      # upstream audit sets now contain. Keep this pin in lockstep with the local
+      # cargo-vet that (re)generates supply-chain/imports.lock (Taskfile `setup`).
+      - name: Install cargo-vet
+        uses: taiki-e/cache-cargo-install-action@v2
+        with:
+          tool: cargo-vet@0.10.2
+
+      - name: cargo audit
+        run: cargo audit
+
+      - name: cargo deny
+        run: cargo deny check
+
+      # Online run (not --locked): fetches the imported third-party audit sets.
+      - name: cargo vet
+        run: cargo vet

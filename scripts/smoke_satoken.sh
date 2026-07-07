@@ -22,6 +22,10 @@ CLUSTER="jsbox-satoken"
 IMG="jsbox-satoken:test"
 REG_VOL="jsbox_cargo_reg"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+# The box repo, expected as a sibling checkout (it owns the fabric-wire contract this
+# workspace path-depends on, and provides the `runlet` binary for the in-cluster boxes).
+PARENT="$(dirname "$REPO")"
+RUNLET_REPO="$PARENT/runlet-js"
 
 skip() { echo "SKIP: $*"; exit 0; }
 for tool in docker kind kubectl; do command -v "$tool" >/dev/null 2>&1 || skip "$tool not found"; done
@@ -41,14 +45,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "== [build] fabricd + runlet (debug, musl — reuses workspace cache) =="
-drun run --rm -v "$(winpath "$REPO"):/work" -v "$REG_VOL:/usr/local/cargo/registry" -w /work rust:1.92-alpine \
-  sh -c "apk add --no-cache musl-dev >/dev/null 2>&1 && cargo build -p fabricd -p runlet" || skip "build failed"
+[ -d "$RUNLET_REPO/crates/fabric-wire" ] || skip "runlet-js sibling checkout not found at $RUNLET_REPO"
+
+echo "== [build] fabricd + runlet (debug, musl — reuses workspace caches, two sibling repos) =="
+drun run --rm -v "$(winpath "$PARENT"):/work" -v "$REG_VOL:/usr/local/cargo/registry" -w /work/fabricd rust:1.92-alpine \
+  sh -c "apk add --no-cache musl-dev >/dev/null 2>&1 && cargo build -p fabricd && cargo build --manifest-path /work/runlet-js/Cargo.toml -p runlet" || skip "build failed"
 
 echo "== [image] building $IMG from the freshly-built binaries =="
 # Assemble a clean build context ($WD) with just the binaries + Dockerfile — the repo .dockerignore
 # excludes target/, so we cannot build from the repo root.
-cp "$REPO/target/debug/fabricd" "$REPO/target/debug/runlet" "$REPO/scripts/Dockerfile.satoken" "$WD/" || { echo "binaries missing"; exit 1; }
+cp "$REPO/target/debug/fabricd" "$RUNLET_REPO/target/debug/runlet" "$REPO/scripts/Dockerfile.satoken" "$WD/" || { echo "binaries missing"; exit 1; }
 mv "$WD/Dockerfile.satoken" "$WD/Dockerfile"
 ( cd "$WD" && drun build -t "$IMG" . ) >/dev/null || { echo "docker build failed"; exit 1; }
 

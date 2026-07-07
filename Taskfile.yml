@@ -1,5 +1,9 @@
 version: '3'
 
+# NOTE: this workspace path-depends on a sibling checkout of the box repo
+# (../runlet-js) for the `fabric-wire` contract crate. Clone it first:
+#   git clone https://github.com/hlop3z/runlet-js ../runlet-js
+
 tasks:
   default:
     desc: Run all checks (lint, format, test, supply chain)
@@ -20,30 +24,14 @@ tasks:
       - cargo build --release
 
   test:
-    desc: Run all tests (unit + integration)
+    desc: Run unit tests
     cmds:
       - cargo test
-      - task: test-integration
-
-  test-integration:
-    desc: Run integration tests against the live server
-    cmds:
-      - python tests/test_simple.py
-
-  test-db-up:
-    desc: Start PostgreSQL and CockroachDB containers
-    cmds:
-      - docker compose up -d --wait
-
-  test-db-down:
-    desc: Stop database containers
-    cmds:
-      - docker compose down
 
   run:
-    desc: Run the binary
+    desc: Run the daemon (config via FABRICD_CONFIG, default fabricd.json)
     cmds:
-      - cargo run -p runlet
+      - cargo run -p fabricd
 
   # ── Code Quality ──────────────────────────────────────────
 
@@ -99,14 +87,6 @@ tasks:
     cmds:
       - cargo deny check
 
-  deny-init:
-    desc: Generate a default deny.toml config
-    preconditions:
-      - sh: command -v cargo-deny
-        msg: "cargo-deny not installed. Run: cargo install cargo-deny"
-    cmds:
-      - cargo deny init
-
   vet:
     desc: Verify all third-party deps have been audited (cargo-vet)
     preconditions:
@@ -114,14 +94,6 @@ tasks:
         msg: "cargo-vet not installed. Run: cargo install cargo-vet"
     cmds:
       - cargo vet
-
-  vet-init:
-    desc: Initialize cargo-vet for this project
-    preconditions:
-      - sh: command -v cargo-vet
-        msg: "cargo-vet not installed. Run: cargo install cargo-vet"
-    cmds:
-      - cargo vet init
 
   # ── Setup ─────────────────────────────────────────────────
 
@@ -145,16 +117,11 @@ tasks:
   # -- Docker -----------------------------------------------
 
   docker-build:
-    desc: Build the Docker image
+    desc: Build the Docker image (context = parent dir, needs ../runlet-js)
     cmds:
-      - docker build -t runlet .
+      - docker build -t fabricd -f Dockerfile ..
 
   docker-run:
-    desc: Run the Docker container on port 3000
+    desc: Run the container with a mounted fabricd.json
     cmds:
-      - docker run --rm -p 3000:3000 runlet
-
-  docker-run-config:
-    desc: Run with a custom config.json mounted
-    cmds:
-      - docker run --rm -p 3000:3000 -v "$(pwd)/config.json:/app/config.json:ro" runlet
+      - docker run --rm -v "$(pwd)/fabricd.json:/app/fabricd.json:ro" fabricd

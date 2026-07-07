@@ -2,25 +2,28 @@ schema: spec-driven
 
 # Project context — shown to AI when creating artifacts.
 context: |
-  jsbox: a sandboxed JavaScript execution service in Rust. Clients POST /execute a JS
-  `handler(ctx)` function plus a JSON context; the server runs it in an isolated QuickJS
-  context (rquickjs) and returns {data, error, meta}. The single endpoint is the product.
+  fabricd: the egress sidecar / broker for runlet (github.com/hlop3z/runlet-js), the
+  sandboxed JavaScript execution service. It holds the operator credential table
+  (`resources`) and ALL the vendor drivers (Postgres/Mongo/SMTP/Redis/AMQP-NATS/OIDC);
+  the box holds neither. One session per box request (Init(names+deadline+tenant) ->
+  Call* -> Drain(metrics)) over a local UDS or a remote QUIC listener with pluggable
+  client auth (none/static/sa-token). Resolution is tenant-scoped; credentials never
+  reach the box.
 
-  Tech stack: Rust (axum, tokio, rquickjs/QuickJS, mimalloc), distroless/static image.
-  Strict lint gauntlet (Cargo.toml [lints]): forbids unsafe; denies clippy all/pedantic/
-  nursery/cargo + many restriction lints (no unwrap/expect/panic, no bare arithmetic, no
-  `as` casts). Build/test are Docker-only (aws-lc-sys needs a C toolchain).
+  The wire contract (fabric-wire: Egress trait, framing, QUIC transport, error taxonomy)
+  is OWNED by the runlet-js repo and consumed as a sibling-checkout path dependency —
+  this daemon is replaceable by anything that speaks the contract. Contract changes are
+  made in runlet-js first.
 
-  Architecture: a JsPool of pre-warmed runtimes; a fresh Context per request; capabilities
-  (api/db/mongo/mail/s3/redis/amq/auth) are per-request opt-in via config and metered. The
-  `amq` messaging capability has two backends (RabbitMQ default, NATS); `mongo` is a document
-  store following the async db template. New capabilities are gated by docs-sys/rfc.md §3.5.
-  `$`/Decimal
-  and `$sys.crypto`/`$sys.date` are always on. Two registries (scripts, modules) load once at
-  startup. Resilience is layered (tiers 0-5). Design rationale lives in docs/design/.
+  Tech stack: Rust (tokio, quinn, tokio-postgres, mongodb, lettre, redis, amqprs,
+  async-nats, jsonwebtoken), one process-wide aws-lc-rs rustls provider (never ring).
+  Strict lint gauntlet (Cargo.toml [lints], same as runlet-js): denies clippy
+  all/pedantic/nursery/cargo + many restriction lints (no unwrap/expect/panic, no bare
+  arithmetic, no `as` casts).
 
   Spec conventions: specs/ holds the WHAT (testable behavioral requirements + scenarios).
-  The WHY (lessons, measured trade-offs, decision trail) stays in docs/design/, linked.
+  The WHY (lessons, measured trade-offs, decision trail) stays in the runlet-js repo's
+  docs/design/, linked.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
