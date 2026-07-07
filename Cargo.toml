@@ -54,7 +54,7 @@ subtle = { version = "2", default-features = false }
 # `raw_value` — the engine's `emit` effects + the `{data,error}` envelope use `RawValue`.
 # Declared directly so a `--no-default-features` core build (no drivers to pull it in) has it.
 serde_json = { version = "1", features = ["raw_value"] }
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "v7"] }
 tokio = { version = "1", features = [
     "macros",
     "rt-multi-thread",
