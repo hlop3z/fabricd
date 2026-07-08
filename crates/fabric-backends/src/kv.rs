@@ -1,6 +1,6 @@
 //! Redis key/value client for the `QuickJS` sandbox (`redis` global).
 //!
-//! JS API: `redis.get/set/del/incr/expire`. Trust model matches `db`/`mail`: the
+//! JS API: `redis.get/set/delete/increment/expire`. Trust model matches `db`/`mail`: the
 //! connection is operator-supplied in `config.redis`, so no SSRF guard — internal
 //! Redis instances are intended to work. Values are **strings in / strings out**;
 //! the script owns (de)serialization. Each op is metered.
@@ -201,8 +201,8 @@ fn dispatch(
     match action {
         "get" => do_get(conn, payload_json),
         "set" => do_set(conn, payload_json),
-        "del" => do_del(conn, payload_json),
-        "incr" => do_incr(conn, payload_json),
+        "delete" => do_delete(conn, payload_json),
+        "increment" => do_increment(conn, payload_json),
         "expire" => do_expire(conn, payload_json),
         other => Err(RedisError::fallback(format!(
             "unknown redis action: {other}"
@@ -257,8 +257,8 @@ fn do_set(conn: &Arc<Mutex<Connection>>, payload_json: &str) -> Result<String, R
     encode(&json!({ "ok": true }))
 }
 
-/// `DEL key` → `{ count: number }`.
-fn do_del(conn: &Arc<Mutex<Connection>>, payload_json: &str) -> Result<String, RedisError> {
+/// `DEL key` → `{ count: number }`. Wire action `delete`; the driver op is Redis `DEL`.
+fn do_delete(conn: &Arc<Mutex<Connection>>, payload_json: &str) -> Result<String, RedisError> {
     let payload: KeyPayload = parse(payload_json)?;
     let count: i64 = {
         let mut guard = lock_conn(conn)?;
@@ -269,8 +269,8 @@ fn do_del(conn: &Arc<Mutex<Connection>>, payload_json: &str) -> Result<String, R
     encode(&json!({ "count": count }))
 }
 
-/// `INCR key` → `{ value: number }`.
-fn do_incr(conn: &Arc<Mutex<Connection>>, payload_json: &str) -> Result<String, RedisError> {
+/// `INCR key` → `{ value: number }`. Wire action `increment`; the driver op is Redis `INCR`.
+fn do_increment(conn: &Arc<Mutex<Connection>>, payload_json: &str) -> Result<String, RedisError> {
     let payload: KeyPayload = parse(payload_json)?;
     let value: i64 = {
         let mut guard = lock_conn(conn)?;
@@ -295,7 +295,7 @@ fn do_expire(conn: &Arc<Mutex<Connection>>, payload_json: &str) -> Result<String
 
 // -- Payloads ---------------------------------------------------------------
 
-/// Payload carrying just a key (`get`/`del`/`incr`).
+/// Payload carrying just a key (`get`/`delete`/`increment`).
 #[derive(Debug, Deserialize)]
 struct KeyPayload {
     /// The Redis key.
