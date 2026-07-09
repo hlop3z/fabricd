@@ -1,6 +1,6 @@
 [package]
 name = "fabric-backends"
-description = "Driver-backed egress backends for runlet (db/mongo/mail/redis/amq/auth) plus the in-process BackendSet that wires them behind the runlet-wire Egress port — the code a sidecar (fabricd) hosts once drivers leave the sandbox"
+description = "Driver-backed egress backends for runlet (db/mail/redis/amq/auth) plus the in-process BackendSet that wires them behind the runlet-wire Egress port — the code a sidecar (fabricd) hosts once drivers leave the sandbox"
 readme = "../../README.md"
 version.workspace = true
 edition.workspace = true
@@ -30,7 +30,6 @@ postgres_rustls.workspace = true
 rustls.workspace = true
 tokio-rustls.workspace = true
 webpki-roots.workspace = true
-mongodb.workspace = true
 reqwest.workspace = true
 jsonwebtoken.workspace = true
 amqprs.workspace = true

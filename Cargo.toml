@@ -54,15 +54,6 @@ tokio-postgres = { version = "0.7", features = [
 # Pinned to 0.1.x: 0.1.5 bumps the MSRV to Rust 1.93.1 (we target 1.92). Revisit with a
 # toolchain bump.
 postgres_rustls = "0.1"
-# Document database (Tier 2 resilience: per-op client-side deadline like db). Async driver;
-# `default-features = false` drops the `dns-resolver` (mongodb+srv) feature we don't use.
-# `rustls-tls-aws-lc` (NOT the default `rustls-tls`, which pulls `ring`) routes mongodb's
-# rustls onto the process-wide `aws-lc-rs` provider — one crypto stack, no second one.
-# `compat-3-0-0` is mongodb's required major-version acknowledgement feature.
-mongodb = { version = "3", default-features = false, features = [
-    "compat-3-0-0",
-    "rustls-tls-aws-lc",
-] }
 rustls = "0.23"
 tokio-rustls = "0.26"
 webpki-roots = "1"

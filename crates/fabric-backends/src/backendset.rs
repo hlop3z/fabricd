@@ -1,18 +1,21 @@
 //! In-process [`Egress`] adapter — wires this crate's own driver capabilities behind the
 //! egress seam, so a consumer can run `io.call(...)` without a sidecar.
 //!
-//! Transitional: the JS-free backends it holds (`DbBackend`, `MongoBackend`, …) are exactly what
-//! a sidecar (`fabricd`) will host once the drivers move out of the sandbox process — see
-//! `docs/design/resource-egress.md` / `docs/design/network-fabric.md`. For now this adapter lets
-//! the existing capabilities flow through the new seam unchanged.
+//! Transitional: the JS-free backends it holds (`DbBackend`, `RedisBackend`, …) are exactly what
+//! a sidecar (`fabricd`) hosts now that the drivers live outside the sandbox process — see
+//! `docs/design/resource-egress.md` / `docs/design/network-fabric.md`.
 //!
-//! Build a fresh [`BackendSet`] per invocation (each backend connects lazily on first use and
-//! carries the per-request deadline) and wire it as the invocation's egress port. After the run,
-//! drain each capability's metrics (e.g. [`db_metrics`](BackendSet::db_metrics)) into the response.
+//! Build a fresh [`BackendSet`] per session from the resolved operator config (each backend
+//! connects lazily on first use and carries the per-request deadline) and wire it as the session's
+//! egress port. After the run, drain the aggregated per-capability [`metrics`](BackendSet::metrics)
+//! into the response.
 //!
-//! Covers the driver-backed capabilities `db`/`mongo`/`mail`/`redis`/`amq`/`auth`; `http` and
-//! `s3` remain in-engine (no driver / pure signing).
+//! Post byo-capabilities the box is **kind-blind**: it addresses a **flat list of logical resource
+//! names**, so the set is a **name → backend** map (two names of the same kind coexist), not the
+//! old per-kind slots. Covers `db`/`mail`/`redis`/`amq`/`auth`; `http` and `s3` remain in-engine
+//! (no driver / pure signing). `mongo` was dropped with `mongocrypt`.
 
+use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -22,295 +25,127 @@ use tokio::runtime::Handle;
 
 use runlet_wire::{CircuitBreaker, Egress, EgressError, ErrorOwner};
 
-use runlet_wire::{
-    AmqMetric, AuthMetric, BackendMetrics, DbMetric, MailMetric, MeteredEgress, MongoMetric,
-    RedisMetric,
-};
+use runlet_wire::{AuthMetric, BackendMetrics, DbMetric, MailMetric, MeteredEgress, RedisMetric};
 
-use crate::amq::{AmqConfig, AmqError, AmqProducer};
+use crate::amq::{AmqError, AmqProducer};
 use crate::auth::{AuthBackend, AuthConfig};
 use crate::db::{DbBackend, DbConfig, DbDeps, DbError};
 use crate::kv::{RedisBackend, RedisConfig, RedisError};
 use crate::mail::{MailBackend, MailConfig, MailError};
-use crate::mongo::{MongoBackend, MongoConfig, MongoDeps, MongoError};
-use crate::resources::ResolvedConfigs;
+use crate::resources::{ResolvedResources, ResourceBinding};
 
-/// Shared runtime/resilience deps for the async backends (`db`, `mongo`). Cloned per backend.
+/// Shared runtime/resilience deps for the async backends (`db`). Cloned per backend.
 #[derive(Debug, Clone)]
 pub struct AsyncDeps {
     /// Runtime handle for the async drivers' `block_on` (the request thread's handle).
     pub handle: Handle,
-    /// Optional shared `db` circuit breaker (Tier 3); ignored by `mongo`.
+    /// Optional shared `db` circuit breaker (Tier 3).
     pub breaker: Option<Arc<CircuitBreaker>>,
     /// Per-execution wall-clock budget (the per-query/op client-side deadline).
     pub timeout: Duration,
 }
 
-/// An in-process egress holding per-request capability backends.
+/// An in-process egress holding this session's capability backends, keyed by logical resource name.
 ///
-/// Construct with [`BackendSet::new`] and attach capabilities with the `with_*` setters.
-/// Each backend connects lazily on first use.
+/// Built with [`BackendSet::from_configs`] from the resolved operator config; each backend connects
+/// lazily on first use.
 #[derive(Default, Debug)]
 pub struct BackendSet {
-    /// Lazily-connected `db` egress.
-    db: Option<DbSlot>,
-    /// Lazily-connected `mongo` egress.
-    mongo: Option<MongoSlot>,
-    /// Lazily-connected `mail` egress.
-    mail: Option<MailSlot>,
-    /// Lazily-connected `redis` egress.
-    redis: Option<RedisSlot>,
-    /// Lazily-connected `auth` egress.
-    auth: Option<AuthSlot>,
-    /// `amq` egress (stateless — connects per call, so built eagerly).
-    amq: Option<AmqProducer>,
+    /// Logical resource name → its lazily-connected backend (ordered, so metric aggregation is
+    /// deterministic).
+    backends: BTreeMap<String, BackendSlot>,
+}
+
+/// One resolved backend, tagged by kind. The `Egress::call` name selects the entry; the kind here
+/// selects the dispatch + the metrics bucket.
+#[derive(Debug)]
+enum BackendSlot {
+    /// A `db` (Postgres-family) backend.
+    Db(DbSlot),
+    /// A `mail`/SMTP backend.
+    Mail(MailSlot),
+    /// A `redis` backend.
+    Redis(RedisSlot),
+    /// An `amq` producer (stateless — connects per call).
+    Amq(AmqProducer),
+    /// An `auth` (OIDC/IAM) backend.
+    Auth(AuthSlot),
+}
+
+impl BackendSlot {
+    /// Builds a lazily-connected slot from one resolved binding.
+    fn from_binding(binding: &ResourceBinding, deps: &AsyncDeps) -> Self {
+        match binding {
+            ResourceBinding::Db(cfg) => Self::Db(DbSlot {
+                config: cfg.as_ref().clone(),
+                deps: deps.clone(),
+                backend: OnceLock::new(),
+            }),
+            ResourceBinding::Mail(cfg) => Self::Mail(MailSlot {
+                config: cfg.as_ref().clone(),
+                backend: OnceLock::new(),
+            }),
+            ResourceBinding::Redis(cfg) => Self::Redis(RedisSlot {
+                config: cfg.as_ref().clone(),
+                backend: OnceLock::new(),
+            }),
+            ResourceBinding::Amq(cfg) => Self::Amq(AmqProducer::new(cfg.as_ref().clone())),
+            ResourceBinding::Auth(cfg) => Self::Auth(AuthSlot {
+                config: cfg.as_ref().clone(),
+                backend: OnceLock::new(),
+            }),
+        }
+    }
 }
 
 impl BackendSet {
-    /// An empty adapter (no capabilities wired).
+    /// An empty adapter (no resources wired).
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Builds a set from resolved operator configs (each `Some` becomes a lazily-connected
-    /// backend). `deps` carries the runtime handle, the optional breaker, and the deadline. This is
-    /// the daemon-side constructor: `fabricd` resolves the session's logical names to these configs.
+    /// Builds a set from the session's resolved operator config: each `name → binding` becomes a
+    /// lazily-connected backend. `deps` carries the runtime handle, the optional breaker, and the
+    /// deadline. This is the daemon-side constructor — `fabricd` resolves the session's logical
+    /// names to these bindings first.
     #[must_use]
-    pub fn from_configs(configs: &ResolvedConfigs, deps: &AsyncDeps) -> Self {
-        let mut set = Self::new();
-        if let Some(cfg) = configs.db.clone() {
-            set = set.with_db(cfg, deps);
+    pub fn from_configs(configs: &ResolvedResources, deps: &AsyncDeps) -> Self {
+        let mut backends = BTreeMap::new();
+        for (name, binding) in &configs.by_name {
+            drop(backends.insert(name.clone(), BackendSlot::from_binding(binding, deps)));
         }
-        if let Some(cfg) = configs.mongo.clone() {
-            set = set.with_mongo(cfg, deps);
-        }
-        if let Some(cfg) = configs.mail.clone() {
-            set = set.with_mail(cfg);
-        }
-        if let Some(cfg) = configs.redis.clone() {
-            set = set.with_redis(cfg);
-        }
-        if let Some(cfg) = configs.amq.clone() {
-            set = set.with_amq(cfg);
-        }
-        if let Some(cfg) = configs.auth.clone() {
-            set = set.with_auth(cfg);
-        }
-        set
+        Self { backends }
     }
 
-    /// Drains every capability's metrics into one [`BackendMetrics`] (the consumer merges it into
-    /// the response `meta.<cap>_requests`; empty for any capability the run never touched).
+    /// Drains every wired backend's metrics into one [`BackendMetrics`], aggregated by kind across
+    /// all names (so two `db` resources merge into `db`). Empty for any capability the run never
+    /// touched; `mongo` is always empty (the driver was dropped, the wire field kept).
     #[must_use]
     pub fn metrics(&self) -> BackendMetrics {
-        BackendMetrics {
-            db: self.db_metrics(),
-            mongo: self.mongo_metrics(),
-            mail: self.mail_metrics(),
-            redis: self.redis_metrics(),
-            amq: self.amq_metrics(),
-            auth: self.auth_metrics(),
+        let mut metrics = BackendMetrics::default();
+        for slot in self.backends.values() {
+            match slot {
+                BackendSlot::Db(db) => metrics.db.extend(db.drained()),
+                BackendSlot::Mail(mail) => metrics.mail.extend(mail.drained()),
+                BackendSlot::Redis(redis) => metrics.redis.extend(redis.drained()),
+                BackendSlot::Amq(producer) => metrics.amq.extend(producer.drain_metrics()),
+                BackendSlot::Auth(auth) => metrics.auth.extend(auth.drained()),
+            }
         }
-    }
-
-    /// Wires the `db` capability (connects lazily on first use).
-    #[must_use]
-    pub fn with_db(mut self, config: DbConfig, deps: &AsyncDeps) -> Self {
-        self.db = Some(DbSlot {
-            config,
-            deps: deps.clone(),
-            backend: OnceLock::new(),
-        });
-        self
-    }
-
-    /// Wires the `mongo` capability (connects lazily on first use).
-    #[must_use]
-    pub fn with_mongo(mut self, config: MongoConfig, deps: &AsyncDeps) -> Self {
-        self.mongo = Some(MongoSlot {
-            config,
-            deps: deps.clone(),
-            backend: OnceLock::new(),
-        });
-        self
-    }
-
-    /// Wires the `mail` capability (builds the transport lazily on first use).
-    #[must_use]
-    pub fn with_mail(mut self, config: MailConfig) -> Self {
-        self.mail = Some(MailSlot {
-            config,
-            backend: OnceLock::new(),
-        });
-        self
-    }
-
-    /// Wires the `redis` capability (connects lazily on first use).
-    #[must_use]
-    pub fn with_redis(mut self, config: RedisConfig) -> Self {
-        self.redis = Some(RedisSlot {
-            config,
-            backend: OnceLock::new(),
-        });
-        self
-    }
-
-    /// Wires the `auth` capability (builds the client lazily on first use).
-    #[must_use]
-    pub fn with_auth(mut self, config: AuthConfig) -> Self {
-        self.auth = Some(AuthSlot {
-            config,
-            backend: OnceLock::new(),
-        });
-        self
-    }
-
-    /// Wires the `amq` capability (stateless; opens a connection per call).
-    #[must_use]
-    pub fn with_amq(mut self, config: AmqConfig) -> Self {
-        self.amq = Some(AmqProducer::new(config));
-        self
-    }
-
-    /// The `db` metrics recorded so far (empty if `db` was never connected/used).
-    #[must_use]
-    pub fn db_metrics(&self) -> Vec<DbMetric> {
-        match self.db.as_ref().and_then(|slot| slot.backend.get()) {
-            Some(Ok(backend)) => backend.drain_metrics(),
-            _ => Vec::new(),
-        }
-    }
-
-    /// The `mongo` metrics recorded so far.
-    #[must_use]
-    pub fn mongo_metrics(&self) -> Vec<MongoMetric> {
-        match self.mongo.as_ref().and_then(|slot| slot.backend.get()) {
-            Some(Ok(backend)) => backend.drain_metrics(),
-            _ => Vec::new(),
-        }
-    }
-
-    /// The `mail` metrics recorded so far.
-    #[must_use]
-    pub fn mail_metrics(&self) -> Vec<MailMetric> {
-        match self.mail.as_ref().and_then(|slot| slot.backend.get()) {
-            Some(Ok(backend)) => backend.drain_metrics(),
-            _ => Vec::new(),
-        }
-    }
-
-    /// The `redis` metrics recorded so far.
-    #[must_use]
-    pub fn redis_metrics(&self) -> Vec<RedisMetric> {
-        match self.redis.as_ref().and_then(|slot| slot.backend.get()) {
-            Some(Ok(backend)) => backend.drain_metrics(),
-            _ => Vec::new(),
-        }
-    }
-
-    /// The `auth` metrics recorded so far.
-    #[must_use]
-    pub fn auth_metrics(&self) -> Vec<AuthMetric> {
-        match self.auth.as_ref().and_then(|slot| slot.backend.get()) {
-            Some(Ok(backend)) => backend.drain_metrics(),
-            _ => Vec::new(),
-        }
-    }
-
-    /// The `amq` metrics recorded so far.
-    #[must_use]
-    pub fn amq_metrics(&self) -> Vec<AmqMetric> {
-        self.amq
-            .as_ref()
-            .map_or_else(Vec::new, AmqProducer::drain_metrics)
-    }
-
-    /// `db`: unpack `{sql, params}` and dispatch.
-    fn call_db(&self, action: &str, payload_json: &str) -> Result<String, EgressError> {
-        let backend = self
-            .db
-            .as_ref()
-            .ok_or_else(|| not_configured("db"))?
-            .backend()?;
-        let args = parse_db_payload(payload_json)?;
-        backend
-            .call(action, &args.sql, &args.params_json)
-            .map_err(DbError::into_resource_error)
-    }
-
-    /// `mongo`: unpack `{collection, data}` and dispatch.
-    fn call_mongo(&self, action: &str, payload_json: &str) -> Result<String, EgressError> {
-        let backend = self
-            .mongo
-            .as_ref()
-            .ok_or_else(|| not_configured("mongo"))?
-            .backend()?;
-        let (collection, data_json) = parse_mongo_payload(payload_json)?;
-        backend
-            .call(action, &collection, &data_json)
-            .map_err(MongoError::into_resource_error)
-    }
-
-    /// `mail`: the payload is the send envelope, passed straight through.
-    fn call_mail(&self, action: &str, payload_json: &str) -> Result<String, EgressError> {
-        let backend = self
-            .mail
-            .as_ref()
-            .ok_or_else(|| not_configured("mail"))?
-            .backend()?;
-        backend
-            .call(action, payload_json)
-            .map_err(MailError::into_resource_error)
-    }
-
-    /// `redis`: the payload is the op args, passed straight through.
-    fn call_redis(&self, action: &str, payload_json: &str) -> Result<String, EgressError> {
-        let backend = self
-            .redis
-            .as_ref()
-            .ok_or_else(|| not_configured("redis"))?
-            .backend()?;
-        backend
-            .call(action, payload_json)
-            .map_err(RedisError::into_resource_error)
-    }
-
-    /// `amq`: the payload is the batch / request, passed straight through.
-    fn call_amq(&self, action: &str, payload_json: &str) -> Result<String, EgressError> {
-        let backend = self.amq.as_ref().ok_or_else(|| not_configured("amq"))?;
-        backend
-            .call(action, payload_json)
-            .map_err(AmqError::into_resource_error)
-    }
-
-    /// `auth`: unpack `{token}` and dispatch (the backend's `call` already maps its errors).
-    fn call_auth(&self, action: &str, payload_json: &str) -> Result<String, EgressError> {
-        let backend = self
-            .auth
-            .as_ref()
-            .ok_or_else(|| not_configured("auth"))?
-            .backend()?;
-        let token = parse_auth_token(payload_json)?;
-        backend.call(action, &token)
+        metrics
     }
 }
 
 impl Egress for BackendSet {
     fn call(&self, name: &str, action: &str, payload_json: &str) -> Result<String, EgressError> {
-        match name {
-            "db" => self.call_db(action, payload_json),
-            "mongo" => self.call_mongo(action, payload_json),
-            "mail" => self.call_mail(action, payload_json),
-            "redis" => self.call_redis(action, payload_json),
-            "amq" => self.call_amq(action, payload_json),
-            "auth" => self.call_auth(action, payload_json),
-            other => {
-                Err(
-                    EgressError::new("engine", "IO_UNKNOWN", format!("unknown egress '{other}'"))
-                        .owner(ErrorOwner::Developer),
-                )
-            }
+        match self.backends.get(name) {
+            Some(BackendSlot::Db(slot)) => dispatch_db(slot, action, payload_json),
+            Some(BackendSlot::Mail(slot)) => dispatch_mail(slot, action, payload_json),
+            Some(BackendSlot::Redis(slot)) => dispatch_redis(slot, action, payload_json),
+            Some(BackendSlot::Amq(producer)) => dispatch_amq(producer, action, payload_json),
+            Some(BackendSlot::Auth(slot)) => dispatch_auth(slot, action, payload_json),
+            None => Err(unknown_egress(name)),
         }
     }
 }
@@ -321,14 +156,58 @@ impl MeteredEgress for BackendSet {
     }
 }
 
-/// Builds the `<CAP>_NOT_CONFIGURED` error for a egress called without its backend wired.
-fn not_configured(name: &str) -> EgressError {
-    EgressError::new(
-        name,
-        format!("{}_NOT_CONFIGURED", name.to_uppercase()),
-        format!("{name} egress is not configured"),
-    )
-    .owner(ErrorOwner::Developer)
+/// The error for an `io.call` naming a resource this session never resolved. A resolved session
+/// only ever calls names it declared, so this is a fail-closed backstop, not a normal path.
+fn unknown_egress(name: &str) -> EgressError {
+    EgressError::new("engine", "IO_UNKNOWN", format!("unknown egress '{name}'"))
+        .owner(ErrorOwner::Developer)
+}
+
+// -- Dispatch ---------------------------------------------------------------
+
+/// `db`: unpack `{sql, params}` and dispatch.
+fn dispatch_db(slot: &DbSlot, action: &str, payload_json: &str) -> Result<String, EgressError> {
+    let backend = slot.backend()?;
+    let args = parse_db_payload(payload_json)?;
+    backend
+        .call(action, &args.sql, &args.params_json)
+        .map_err(DbError::into_resource_error)
+}
+
+/// `mail`: the payload is the send envelope, passed straight through.
+fn dispatch_mail(slot: &MailSlot, action: &str, payload_json: &str) -> Result<String, EgressError> {
+    slot.backend()?
+        .call(action, payload_json)
+        .map_err(MailError::into_resource_error)
+}
+
+/// `redis`: the payload is the op args, passed straight through.
+fn dispatch_redis(
+    slot: &RedisSlot,
+    action: &str,
+    payload_json: &str,
+) -> Result<String, EgressError> {
+    slot.backend()?
+        .call(action, payload_json)
+        .map_err(RedisError::into_resource_error)
+}
+
+/// `amq`: the payload is the batch / request, passed straight through.
+fn dispatch_amq(
+    producer: &AmqProducer,
+    action: &str,
+    payload_json: &str,
+) -> Result<String, EgressError> {
+    producer
+        .call(action, payload_json)
+        .map_err(AmqError::into_resource_error)
+}
+
+/// `auth`: unpack `{token}` and dispatch (the backend's `call` already maps its errors).
+fn dispatch_auth(slot: &AuthSlot, action: &str, payload_json: &str) -> Result<String, EgressError> {
+    let backend = slot.backend()?;
+    let token = parse_auth_token(payload_json)?;
+    backend.call(action, &token)
 }
 
 // -- Lazy slots -------------------------------------------------------------
@@ -360,32 +239,12 @@ impl DbSlot {
             Err(err) => Err(err.clone()),
         }
     }
-}
 
-/// Lazily-connected `mongo` egress.
-#[derive(Debug)]
-struct MongoSlot {
-    /// Operator connection config.
-    config: MongoConfig,
-    /// Async runtime + deadline (breaker unused).
-    deps: AsyncDeps,
-    /// Connect-once cell.
-    backend: OnceLock<Result<MongoBackend, EgressError>>,
-}
-
-impl MongoSlot {
-    /// Returns the connected backend, connecting on first use.
-    fn backend(&self) -> Result<&MongoBackend, EgressError> {
-        let deps = MongoDeps {
-            handle: &self.deps.handle,
-            timeout: self.deps.timeout,
-        };
-        match self
-            .backend
-            .get_or_init(|| MongoBackend::connect_resource(&self.config, &deps))
-        {
-            Ok(backend) => Ok(backend),
-            Err(err) => Err(err.clone()),
+    /// The metrics recorded so far (empty if never connected/used).
+    fn drained(&self) -> Vec<DbMetric> {
+        match self.backend.get() {
+            Some(Ok(backend)) => backend.drain_metrics(),
+            _ => Vec::new(),
         }
     }
 }
@@ -410,6 +269,14 @@ impl MailSlot {
             Err(err) => Err(err.clone()),
         }
     }
+
+    /// The metrics recorded so far (empty if never built/used).
+    fn drained(&self) -> Vec<MailMetric> {
+        match self.backend.get() {
+            Some(Ok(backend)) => backend.drain_metrics(),
+            _ => Vec::new(),
+        }
+    }
 }
 
 /// Lazily-connected `redis` egress.
@@ -432,6 +299,14 @@ impl RedisSlot {
             Err(err) => Err(err.clone()),
         }
     }
+
+    /// The metrics recorded so far (empty if never connected/used).
+    fn drained(&self) -> Vec<RedisMetric> {
+        match self.backend.get() {
+            Some(Ok(backend)) => backend.drain_metrics(),
+            _ => Vec::new(),
+        }
+    }
 }
 
 /// Lazily-built `auth` egress.
@@ -452,6 +327,14 @@ impl AuthSlot {
         {
             Ok(backend) => Ok(backend),
             Err(err) => Err(err.clone()),
+        }
+    }
+
+    /// The metrics recorded so far (empty if never built/used).
+    fn drained(&self) -> Vec<AuthMetric> {
+        match self.backend.get() {
+            Some(Ok(backend)) => backend.drain_metrics(),
+            _ => Vec::new(),
         }
     }
 }
@@ -494,35 +377,6 @@ fn parse_db_payload(payload_json: &str) -> Result<DbArgs, EgressError> {
     })
 }
 
-/// The `mongo` egress envelope: `{ "collection": string, "data": <mongo payload> }`.
-#[derive(Deserialize)]
-struct MongoEnvelope {
-    /// Collection name.
-    #[serde(default)]
-    collection: String,
-    /// The per-action mongo payload (filter/options/doc/…), re-serialized for the backend.
-    #[serde(default)]
-    data: Value,
-}
-
-/// Parses the `mongo` envelope into `(collection, data_json)`, defaulting null data to `{}`.
-fn parse_mongo_payload(payload_json: &str) -> Result<(String, String), EgressError> {
-    let envelope: MongoEnvelope = serde_json::from_str(payload_json).map_err(|err| {
-        EgressError::new(
-            "mongo",
-            "MONGO_QUERY",
-            format!("invalid mongo payload: {err}"),
-        )
-        .owner(ErrorOwner::Developer)
-    })?;
-    let data_json = if envelope.data.is_null() {
-        "{}".to_owned()
-    } else {
-        serde_json::to_string(&envelope.data).unwrap_or_else(|_err| "{}".to_owned())
-    };
-    Ok((envelope.collection, data_json))
-}
-
 /// The `auth` egress payload: `{ "token": string }`.
 #[derive(Deserialize)]
 struct AuthPayload {
@@ -546,11 +400,11 @@ fn parse_auth_token(payload_json: &str) -> Result<String, EgressError> {
 
 #[cfg(test)]
 mod tests {
-    //! Covers the adapter glue that needs no live backend: payload unpacking and the
-    //! unknown-/unconfigured-egress errors. Real dispatch is covered by the per-capability
-    //! integration suites against live backends.
+    //! Covers the adapter glue that needs no live backend: payload unpacking and unknown-name
+    //! routing. Real dispatch is covered by the per-capability integration suites against live
+    //! backends.
 
-    use super::{BackendSet, parse_auth_token, parse_db_payload, parse_mongo_payload};
+    use super::{BackendSet, parse_auth_token, parse_db_payload};
     use runlet_wire::Egress;
 
     /// A well-formed `db` payload yields the SQL and a re-serialized params array.
@@ -570,16 +424,6 @@ mod tests {
         assert_eq!(args.params_json, "[]");
     }
 
-    /// The `mongo` envelope unpacks the collection and re-serializes the data.
-    #[test]
-    fn parses_mongo_envelope() {
-        let (collection, data) =
-            parse_mongo_payload(r#"{"collection":"users","data":{"filter":{"a":1}}}"#)
-                .unwrap_or_else(|_err| unreachable!("valid payload"));
-        assert_eq!(collection, "users");
-        assert!(data.contains("filter"), "data re-serialized: {data}");
-    }
-
     /// The `auth` payload unpacks the token.
     #[test]
     fn parses_auth_token_field() {
@@ -596,27 +440,10 @@ mod tests {
         assert_eq!(err.source, "db");
     }
 
-    /// An unknown egress name is rejected without touching any backend.
+    /// A name with no backend wired for this session is a clear `IO_UNKNOWN`, not a panic.
     #[test]
     fn unknown_resource_is_rejected() {
         let err = BackendSet::new().call("nope", "ping", "{}").unwrap_err();
         assert_eq!(err.code, "IO_UNKNOWN");
-    }
-
-    /// Calling a capability with no backend wired is a clear `*_NOT_CONFIGURED`, not a panic.
-    #[test]
-    fn unconfigured_capability_is_reported() {
-        let adapter = BackendSet::new();
-        assert_eq!(
-            adapter
-                .call("redis", "get", r#"{"key":"k"}"#)
-                .unwrap_err()
-                .code,
-            "REDIS_NOT_CONFIGURED"
-        );
-        assert_eq!(
-            adapter.call("amq", "send", "{}").unwrap_err().code,
-            "AMQ_NOT_CONFIGURED"
-        );
     }
 }

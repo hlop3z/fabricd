@@ -1,7 +1,7 @@
 //! `fabric-backends`: the driver-backed egress backends for runlet.
 //!
 //! The half of the old `runlet-core` capability modules that holds the network drivers —
-//! `db` (`tokio-postgres`), `mongo` (`mongodb`), `mail` (SMTP/`lettre`), `redis`, `amq`
+//! `db` (`tokio-postgres`), `mail` (SMTP/`lettre`), `redis`, `amq`
 //! (`RabbitMQ`/`NATS`), and `auth` (OIDC) — extracted so the sandbox (`runlet-core`) links no
 //! driver. Each module exposes a JS-free `*Backend` (string-in/string-out dispatch + metrics +
 //! `into_resource_error`); [`BackendSet`] wires them behind the [`runlet_wire::Egress`] port for
@@ -16,12 +16,11 @@ pub mod backendset;
 pub mod db;
 pub mod kv;
 pub mod mail;
-pub mod mongo;
 pub mod resources;
 pub mod sa_token;
 
 pub use crate::backendset::{AsyncDeps, BackendSet};
 pub use crate::resources::{
-    ResolveError, ResolvedConfigs, ResourceBinding, TenantResourceBinding, resolve,
+    ResolveError, ResolvedResources, ResourceBinding, TenantResourceBinding, resolve,
 };
 pub use crate::sa_token::{JwksVerifier, SaTokenVerifyConfig, VerifyError};

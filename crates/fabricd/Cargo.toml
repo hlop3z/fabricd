@@ -1,6 +1,6 @@
 [package]
 name = "fabricd"
-description = "Local egress sidecar for runlet — hosts fabric-backends' BackendSet behind a Unix-domain-socket wire protocol, so the sandbox box reaches db/mongo/mail/redis/amq/auth without linking the drivers"
+description = "Local egress sidecar for runlet — hosts fabric-backends' BackendSet behind a Unix-domain-socket wire protocol, so the sandbox box reaches db/mail/redis/amq/auth without linking the drivers"
 readme = "../../README.md"
 version.workspace = true
 edition.workspace = true
