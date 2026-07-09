@@ -15,7 +15,7 @@
 ## 2. Drop mongo (D4)
 
 - [x] 2.1 Removed the `mongo` backend from `fabric-backends` (deleted `mongo.rs`, the `Mongo` `ResourceBinding` variant, the slot/dispatch, and the mongo-specific tests)
-- [~] 2.2 Dropped the `mongodb` dependency (workspace + `fabric-backends` Cargo) — `mongocrypt` fell out transitively. **Pending:** `cargo vet prune` of the now-stale `mongodb`/`mongocrypt`/`mongodb-internal-macros` exemptions in `supply-chain/config.toml` (build/clippy/test unaffected)
+- [x] 2.2 Dropped the `mongodb` dependency (workspace + `fabric-backends` Cargo) — `mongocrypt` fell out transitively. Pruned the now-dead `mongodb`/`mongocrypt`/`mongocrypt-sys`/`mongodb-internal-macros` exemptions from `supply-chain/config.toml`
 - [x] 2.3 `BackendMetrics.mongo` no longer populated (the `metrics()` builder never fills it; the box-owned `runlet-wire` field is left intact)
 
 ## 3. Least-privilege preflight + boot gate + opt-out ban (resource-privilege-guard)
