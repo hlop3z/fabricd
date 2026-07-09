@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **🚧 Planned rewrite to Go.** `fabricd` is being reimplemented in **Go** (the broker is an
+> I/O-bound credential-and-driver proxy — Go's driver + ops ecosystem fits it better than Rust). The
+> **wire contract is frozen** and still owned by `runlet-js` (`crates/runlet-wire`); only this
+> daemon's implementation changes. The authoritative Go implementation spec — length-prefixed JSON
+> framing, UDS + raw-QUIC transports (quic-go raw streams, **not** `http3.Server`), the exact
+> message JSON incl. serde's externally-tagged enum shapes, client auth, and the conformance gate —
+> is in [`docs/go-rewrite-wire-contract.md`](docs/go-rewrite-wire-contract.md). The Rust crates
+> described below stay the reference until the Go daemon passes the same conformance +
+> integration suites. **Do not change the wire contract here** — contract changes still land in
+> `runlet-js` first.
+
 ## What this is
 
 The **egress sidecar / broker** for [runlet](https://github.com/hlop3z/runlet-js): it holds

@@ -12,6 +12,14 @@ trait, the framed `Init`→`Call`\*→`Drain` session protocol, the QUIC transpo
 taxonomy — is owned by the box repo (`runlet-js`, crate `crates/runlet-wire`). Anything that
 speaks that contract can stand in for `fabricd`; nothing in `runlet-js` depends on this repo.
 
+> **🚧 Planned rewrite: this daemon is moving to Go.** The broker is an I/O-bound
+> credential-and-driver proxy — Go's driver + ops ecosystem fits it better than Rust. The wire
+> **contract stays frozen** (owned by `runlet-js`); only the implementation changes. The
+> authoritative, byte-level spec a Go `fabricd` must implement — framing, transports, message JSON,
+> auth, and the conformance gate — is in
+> [`docs/go-rewrite-wire-contract.md`](docs/go-rewrite-wire-contract.md). The Rust daemon below
+> remains the reference until the Go rewrite passes the same conformance + integration suites.
+
 ## Layout
 
 - **`crates/fabric-backends`** — the driver bag: one JS-free `*Backend` per capability
