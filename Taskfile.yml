@@ -116,6 +116,18 @@ tasks:
     cmds:
       - cargo clean
 
+  # -- Driver conformance backends --------------------------
+
+  compose-up:
+    desc: Start the driver-conformance backends (Postgres, PgBouncer, CockroachDB, Redis, RabbitMQ, NATS, Keycloak, ZITADEL)
+    cmds:
+      - docker compose up -d --wait
+
+  compose-down:
+    desc: Stop and remove the conformance backends
+    cmds:
+      - docker compose down -v
+
   # -- Docker -----------------------------------------------
 
   docker-build:

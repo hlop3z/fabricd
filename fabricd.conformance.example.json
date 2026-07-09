@@ -1,0 +1,29 @@
+{
+  "__comment": "Conformance resource table aligned to docker-compose.yml (host-mapped ports; fabricd on the host). Copy to fabricd.json and run the driver-conformance suite against it — see docs/driver-conformance.md. Each key is a logical name; the box sends only the name and fabricd resolves the kind/endpoint/creds here. The `db` variants exist to exercise clamp/max_rows/breaker; fill in auth issuers/creds from the running Keycloak/ZITADEL.",
+  "socket": "/tmp/fabricd.sock",
+  "resources": {
+    "pg": { "kind": "db", "host": "127.0.0.1", "port": 5432, "user": "test", "password": "test", "database": "testdb" },
+    "pg-maxrows5": { "kind": "db", "host": "127.0.0.1", "port": 5432, "user": "test", "password": "test", "database": "testdb", "max_rows": 5 },
+    "pg-fast": { "kind": "db", "host": "127.0.0.1", "port": 5432, "user": "test", "password": "test", "database": "testdb", "statement_timeout_ms": 800 },
+    "pg-unlimited": { "kind": "db", "host": "127.0.0.1", "port": 5432, "user": "test", "password": "test", "database": "testdb", "statement_timeout_ms": 0 },
+    "pg-huge": { "kind": "db", "host": "127.0.0.1", "port": 5432, "user": "test", "password": "test", "database": "testdb", "statement_timeout_ms": 60000 },
+
+    "pgbouncer": { "kind": "db", "host": "127.0.0.1", "port": 6432, "user": "test", "password": "test", "database": "testdb" },
+    "pgbouncer-fast": { "kind": "db", "host": "127.0.0.1", "port": 6432, "user": "test", "password": "test", "database": "testdb", "statement_timeout_ms": 800 },
+
+    "cockroach": { "kind": "db", "host": "127.0.0.1", "port": 26257, "user": "test", "password": "", "database": "testdb" },
+    "cockroach-maxrows5": { "kind": "db", "host": "127.0.0.1", "port": 26257, "user": "test", "password": "", "database": "testdb", "max_rows": 5 },
+
+    "db-broken": { "kind": "db", "host": "broken-db.invalid", "port": 1, "user": "test", "password": "test", "database": "testdb" },
+
+    "nats": { "kind": "amq", "backend": "nats", "host": "127.0.0.1", "port": 4222 },
+    "nats-fast": { "kind": "amq", "backend": "nats", "host": "127.0.0.1", "port": 4222, "request_timeout_ms": 500 },
+
+    "redis": { "kind": "redis", "url": "redis://127.0.0.1:6379/0", "timeout_ms": 5000 },
+
+    "auth-keycloak": { "kind": "auth", "issuer": "http://127.0.0.1:8081/realms/master" },
+    "auth-keycloak-introspect": { "kind": "auth", "issuer": "http://127.0.0.1:8081/realms/master", "client_id": "CHANGE_ME", "client_secret": "CHANGE_ME" },
+    "auth-zitadel": { "kind": "auth", "issuer": "http://127.0.0.1:8082" }
+  },
+  "__clamp_note": "Set the daemon's `max_statement_timeout_ms` ceiling (below the 2s pg_sleep used by the clamp checks) to exercise the pg-unlimited / pg-huge clamp conformance."
+}
